@@ -40,7 +40,7 @@ export default function AdminLayout() {
         <div className="premium-brand">
           <div className="premium-brand-mark">b</div>
           <div>
-            <h1>bCareAZ</h1>
+            <h1>UnifiedCare Platform</h1>
             <p>Behavioral Health CRM</p>
           </div>
         </div>

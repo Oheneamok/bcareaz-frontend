@@ -8,6 +8,10 @@ import {
   AlertTriangle,
   Users,
   X,
+  User,
+  HeartPulse,
+  Phone,
+  ClipboardCheck,
 } from "lucide-react";
 
 import api from "../services/api";
@@ -15,25 +19,144 @@ import api from "../services/api";
 const emptyForm = {
   first_name: "",
   last_name: "",
+  nickname: "",
   date_of_birth: "",
-  gender: "",
-  phone: "",
-  email: "",
   admission_date: "",
-  status: "ACTIVE",
-  diagnosis: "",
+
+  street_address: "",
+  city: "",
+  state: "AZ",
+  zip_code: "",
+
+  home_phone: "",
+  cell_phone: "",
+  work_phone: "",
+  email: "",
+  social_security: "",
+
+  health_plan: "AHCCCS",
+  health_plan_id: "",
+  plan_name: "",
+  plan_phone: "",
+
+  gender: "",
+  height: "",
+  weight: "",
+  eye_color: "",
+  hair_color: "",
+
+  citizenship: "United States",
+  marital_status: "",
+  race: "",
+  hispanic: "",
+  religious_preference: "",
+
+  primary_diagnosis: "",
+  seizure_disorder: false,
+  allergies: "",
+  allergy_reaction_instructions: "",
+
+  pcp_name: "",
+  pcp_phone: "",
+  pcp_address: "",
+  pcp_city: "",
+  pcp_state: "AZ",
+  pcp_zip: "",
+
+  hospital_preference: "",
+
+  behavioral_health_provider_name: "",
+  behavioral_health_provider_phone: "",
+  behavioral_health_provider_address: "",
+  behavioral_health_provider_city: "",
+  behavioral_health_provider_state: "AZ",
+  behavioral_health_provider_zip: "",
+
+  therapist_name: "",
+  therapist_phone: "",
+  therapist_address: "",
+  therapist_city: "",
+  therapist_state: "AZ",
+  therapist_zip: "",
+
+  dentist_name: "",
+  dentist_phone: "",
+  dentist_address: "",
+  dentist_city: "",
+  dentist_state: "AZ",
+  dentist_zip: "",
+
+  plan_provider: "",
+  plan_provider_phone: "",
+  plan_provider_id_number: "",
+
   guardian_name: "",
-  guardian_phone: "",
-  guardian_relationship: "",
-  address: "",
+  guardian_home_phone: "",
+  guardian_cell_phone: "",
+  guardian_work_phone: "",
+  guardian_email: "",
+  guardian_address: "",
+  guardian_city: "",
+  guardian_state: "AZ",
+  guardian_zip: "",
+  no_guardian_assigned: false,
+
+  emergency_contact_name: "",
+  emergency_contact_relationship: "",
+  emergency_contact_home_phone: "",
+  emergency_contact_cell_phone: "",
+  emergency_contact_work_phone: "",
+  emergency_contact_email: "",
+  emergency_contact_address: "",
+  emergency_contact_city: "",
+  emergency_contact_state: "AZ",
+  emergency_contact_zip: "",
+
+  case_manager_name: "",
+  case_manager_home_phone: "",
+  case_manager_cell_phone: "",
+  case_manager_work_phone: "",
+  case_manager_email: "",
+  case_manager_address: "",
+  case_manager_city: "",
+  case_manager_state: "AZ",
+  case_manager_zip: "",
+
+  parole_officer_name: "",
+  parole_officer_home_phone: "",
+  parole_officer_cell_phone: "",
+  parole_officer_work_phone: "",
+  parole_officer_email: "",
+  parole_officer_address: "",
+
+  additional_contact_1_name: "",
+  additional_contact_1_relationship: "",
+  additional_contact_1_phone: "",
+  additional_contact_1_email: "",
+
+  additional_contact_2_name: "",
+  additional_contact_2_relationship: "",
+  additional_contact_2_phone: "",
+  additional_contact_2_email: "",
+
+  status: "ACTIVE",
 };
+
+const wizardSteps = [
+  { label: "Face Sheet", icon: User },
+  { label: "Health Care", icon: HeartPulse },
+  { label: "Contacts", icon: Phone },
+  { label: "Review & Admit", icon: ClipboardCheck },
+];
 
 export default function ResidentsPage() {
   const [residents, setResidents] = useState([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
+
   const [showAddModal, setShowAddModal] = useState(false);
+  const [step, setStep] = useState(0);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
@@ -65,12 +188,31 @@ export default function ResidentsPage() {
       setSaving(true);
 
       await api.post("/residents", {
-        ...form,
+        first_name: form.first_name,
+        last_name: form.last_name,
         date_of_birth: form.date_of_birth || null,
+        gender: form.gender,
+        phone: form.cell_phone || form.home_phone,
+        email: form.email,
         admission_date: form.admission_date || null,
+        status: form.status,
+        address: buildAddress(
+          form.street_address,
+          form.city,
+          form.state,
+          form.zip_code
+        ),
+        diagnosis: form.primary_diagnosis,
+        guardian_name: form.guardian_name,
+        guardian_phone: form.guardian_cell_phone || form.guardian_home_phone,
+        guardian_relationship: form.no_guardian_assigned
+          ? "No guardian assigned"
+          : "Legal Guardian",
+        form_data: form,
       });
 
       setForm(emptyForm);
+      setStep(0);
       setShowAddModal(false);
       await loadResidents();
     } catch (err) {
@@ -83,7 +225,9 @@ export default function ResidentsPage() {
 
   const filteredResidents = useMemo(() => {
     return residents.filter((resident) => {
-      const fullName = `${resident.first_name || ""} ${resident.last_name || ""}`.toLowerCase();
+      const fullName = `${resident.first_name || ""} ${
+        resident.last_name || ""
+      }`.toLowerCase();
       const query = search.toLowerCase();
 
       const matchesSearch =
@@ -104,14 +248,14 @@ export default function ResidentsPage() {
           <p className="dashboard-eyebrow">Resident Census</p>
           <h1>Residents</h1>
           <p>
-            Manage resident profiles, admissions, clinical records, documents,
-            compliance, and care coordination.
+            Manage resident profiles, admissions, clinical records, health care
+            contacts, documents, compliance, and care coordination.
           </p>
         </div>
 
         <button className="primary-action" onClick={() => setShowAddModal(true)}>
           <UserPlus size={18} />
-          Add Resident
+          Admit Resident
         </button>
       </section>
 
@@ -124,7 +268,10 @@ export default function ResidentsPage() {
         />
         <SummaryCard
           title="Inactive / Discharged"
-          value={residents.filter((r) => !r.is_active || r.status === "DISCHARGED").length}
+          value={
+            residents.filter((r) => !r.is_active || r.status === "DISCHARGED")
+              .length
+          }
           icon={<AlertTriangle />}
         />
       </section>
@@ -180,7 +327,9 @@ export default function ResidentsPage() {
                   <tr key={resident.id}>
                     <td>
                       <div className="resident-cell">
-                        <div className="resident-avatar">{getInitials(resident)}</div>
+                        <div className="resident-avatar">
+                          {getInitials(resident)}
+                        </div>
                         <div>
                           <strong>
                             {resident.first_name} {resident.last_name}
@@ -217,27 +366,41 @@ export default function ResidentsPage() {
       </section>
 
       {showAddModal && (
-        <ResidentModal
-          title="Add Resident"
+        <AdmissionWizard
           form={form}
           setForm={setForm}
+          step={step}
+          setStep={setStep}
+          saving={saving}
           onClose={() => setShowAddModal(false)}
           onSubmit={createResident}
-          saving={saving}
         />
       )}
     </div>
   );
 }
 
-function ResidentModal({ title, form, setForm, onClose, onSubmit, saving }) {
+function AdmissionWizard({
+  form,
+  setForm,
+  step,
+  setStep,
+  saving,
+  onClose,
+  onSubmit,
+}) {
+  const CurrentIcon = wizardSteps[step].icon;
+
   return (
     <div className="modal-backdrop">
-      <div className="premium-modal large">
-        <div className="modal-header">
+      <div className="premium-modal admission-modal">
+        <div className="modal-header admission-header">
           <div>
-            <p className="dashboard-eyebrow">Resident Intake</p>
-            <h2>{title}</h2>
+            <p className="dashboard-eyebrow">Resident Admission</p>
+            <h2>Admit New Resident</h2>
+            <p className="muted">
+              Complete face sheet, health care information, and contact records.
+            </p>
           </div>
 
           <button className="icon-close" onClick={onClose}>
@@ -245,52 +408,315 @@ function ResidentModal({ title, form, setForm, onClose, onSubmit, saving }) {
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="modal-form-grid">
-          <Input label="First Name" value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} required />
-          <Input label="Last Name" value={form.last_name} onChange={(v) => setForm({ ...form, last_name: v })} required />
+        <div className="admission-stepper">
+          {wizardSteps.map((item, index) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.label}
+                type="button"
+                className={`admission-step step-${index} ${
+                  step === index ? "active" : ""
+                } ${step > index ? "complete" : ""}`}
+                onClick={() => setStep(index)}
+              >
+                <span>
+                  <Icon size={20} />
+                </span>
+                <strong>{item.label}</strong>
+              </button>
+            );
+          })}
+        </div>
 
-          <Input label="DOB" type="date" value={form.date_of_birth} onChange={(v) => setForm({ ...form, date_of_birth: v })} />
-
-          <Select
-            label="Gender"
-            value={form.gender}
-            onChange={(v) => setForm({ ...form, gender: v })}
-            options={["", "Male", "Female", "Other"]}
-          />
-
-          <Input label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
-          <Input label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-
-          <Input label="Admission Date" type="date" value={form.admission_date} onChange={(v) => setForm({ ...form, admission_date: v })} required />
-
-          <Select
-            label="Status"
-            value={form.status}
-            onChange={(v) => setForm({ ...form, status: v })}
-            options={["ACTIVE", "PENDING", "INACTIVE", "DISCHARGED"]}
-          />
-
-          <Input label="Diagnosis" value={form.diagnosis} onChange={(v) => setForm({ ...form, diagnosis: v })} />
-          <Input label="Guardian Name" value={form.guardian_name} onChange={(v) => setForm({ ...form, guardian_name: v })} />
-
-          <Input label="Guardian Phone" value={form.guardian_phone} onChange={(v) => setForm({ ...form, guardian_phone: v })} />
-          <Input label="Guardian Relationship" value={form.guardian_relationship} onChange={(v) => setForm({ ...form, guardian_relationship: v })} />
-
-          <div className="modal-field full">
-            <label>Address</label>
-            <textarea value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+        <form onSubmit={onSubmit}>
+          <div className="admission-section-title">
+            <span className={`admission-section-icon step-${step}`}>
+              <CurrentIcon size={22} />
+            </span>
+            <div>
+              <h3>{wizardSteps[step].label}</h3>
+              <p>{getStepDescription(step)}</p>
+            </div>
           </div>
 
-          <div className="modal-actions full">
+          {step === 0 && <FaceSheet form={form} setForm={setForm} />}
+          {step === 1 && <HealthCare form={form} setForm={setForm} />}
+          {step === 2 && <Contacts form={form} setForm={setForm} />}
+          {step === 3 && <Review form={form} />}
+
+          <div className="wizard-actions">
             <button type="button" className="secondary-btn" onClick={onClose}>
               Cancel
             </button>
-            <button className="primary-btn" disabled={saving}>
-              {saving ? "Saving..." : "Save Resident"}
-            </button>
+
+            {step > 0 && (
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={() => setStep(step - 1)}
+              >
+                Back
+              </button>
+            )}
+
+            {step < wizardSteps.length - 1 ? (
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={() => setStep(step + 1)}
+              >
+                Continue
+              </button>
+            ) : (
+              <button className="primary-btn" disabled={saving}>
+                {saving ? "Admitting..." : "Admit Resident"}
+              </button>
+            )}
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function FaceSheet({ form, setForm }) {
+  return (
+    <div className="admission-grid">
+      <Section title="Resident Identity">
+        <Input label="First Name" value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} required />
+        <Input label="Last Name" value={form.last_name} onChange={(v) => setForm({ ...form, last_name: v })} required />
+        <Input label="Nickname" value={form.nickname} onChange={(v) => setForm({ ...form, nickname: v })} />
+        <Input label="Birthdate" type="date" value={form.date_of_birth} onChange={(v) => setForm({ ...form, date_of_birth: v })} />
+        <Input label="Admission Date" type="date" value={form.admission_date} onChange={(v) => setForm({ ...form, admission_date: v })} required />
+        <Select label="Status" value={form.status} onChange={(v) => setForm({ ...form, status: v })} options={["ACTIVE", "PENDING", "INACTIVE", "DISCHARGED"]} />
+      </Section>
+
+      <Section title="Address">
+        <Input label="Street Address" value={form.street_address} onChange={(v) => setForm({ ...form, street_address: v })} />
+        <Input label="City" value={form.city} onChange={(v) => setForm({ ...form, city: v })} />
+        <Input label="State" value={form.state} onChange={(v) => setForm({ ...form, state: v })} />
+        <Input label="Zip Code" value={form.zip_code} onChange={(v) => setForm({ ...form, zip_code: v })} />
+      </Section>
+
+      <Section title="Contact">
+        <Input label="Home Phone" value={form.home_phone} onChange={(v) => setForm({ ...form, home_phone: v })} />
+        <Input label="Cell Phone" value={form.cell_phone} onChange={(v) => setForm({ ...form, cell_phone: v })} />
+        <Input label="Work Phone" value={form.work_phone} onChange={(v) => setForm({ ...form, work_phone: v })} />
+        <Input label="Email Address" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+        <Input label="Social Security" value={form.social_security} onChange={(v) => setForm({ ...form, social_security: v })} />
+      </Section>
+
+      <Section title="Health Plan">
+        <Input label="Health Plan" value={form.health_plan} onChange={(v) => setForm({ ...form, health_plan: v })} />
+        <Input label="Health Plan ID" value={form.health_plan_id} onChange={(v) => setForm({ ...form, health_plan_id: v })} />
+        <Input label="Plan Name" value={form.plan_name} onChange={(v) => setForm({ ...form, plan_name: v })} />
+        <Input label="Plan Phone" value={form.plan_phone} onChange={(v) => setForm({ ...form, plan_phone: v })} />
+      </Section>
+
+      <Section title="Demographics">
+        <Select label="Gender" value={form.gender} onChange={(v) => setForm({ ...form, gender: v })} options={["", "Female", "Male", "Other"]} />
+        <Input label="Height" value={form.height} onChange={(v) => setForm({ ...form, height: v })} />
+        <Input label="Weight" value={form.weight} onChange={(v) => setForm({ ...form, weight: v })} />
+        <Input label="Eye Color" value={form.eye_color} onChange={(v) => setForm({ ...form, eye_color: v })} />
+        <Input label="Hair Color" value={form.hair_color} onChange={(v) => setForm({ ...form, hair_color: v })} />
+        <Select label="Citizenship" value={form.citizenship} onChange={(v) => setForm({ ...form, citizenship: v })} options={["United States", "Other"]} />
+        <Select label="Marital Status" value={form.marital_status} onChange={(v) => setForm({ ...form, marital_status: v })} options={["", "Single", "Married", "Divorced", "Widowed"]} />
+        <Input label="Race" value={form.race} onChange={(v) => setForm({ ...form, race: v })} />
+        <Select label="Hispanic" value={form.hispanic} onChange={(v) => setForm({ ...form, hispanic: v })} options={["", "Yes", "No"]} />
+        <Input label="Religious Preference" value={form.religious_preference} onChange={(v) => setForm({ ...form, religious_preference: v })} />
+      </Section>
+
+      <Section title="Clinical Face Sheet">
+        <TextArea label="Primary Diagnosis" value={form.primary_diagnosis} onChange={(v) => setForm({ ...form, primary_diagnosis: v })} />
+        <Checkbox label="Seizure Disorder" checked={form.seizure_disorder} onChange={(v) => setForm({ ...form, seizure_disorder: v })} />
+        <TextArea label="Allergies" value={form.allergies} onChange={(v) => setForm({ ...form, allergies: v })} />
+        <TextArea label="Reaction / Special Instructions" value={form.allergy_reaction_instructions} onChange={(v) => setForm({ ...form, allergy_reaction_instructions: v })} />
+      </Section>
+    </div>
+  );
+}
+
+function HealthCare({ form, setForm }) {
+  return (
+    <div className="admission-grid">
+      <ProviderSection
+        title="Primary Care Physician"
+        prefix="pcp"
+        form={form}
+        setForm={setForm}
+      />
+
+      <Section title="Hospital / Urgent Care Preference">
+        <Input label="Preferred Hospital/Urgent Care" value={form.hospital_preference} onChange={(v) => setForm({ ...form, hospital_preference: v })} />
+      </Section>
+
+      <ProviderSection
+        title="Behavioral Health Provider"
+        prefix="behavioral_health_provider"
+        form={form}
+        setForm={setForm}
+      />
+
+      <ProviderSection
+        title="Therapist"
+        prefix="therapist"
+        form={form}
+        setForm={setForm}
+      />
+
+      <ProviderSection
+        title="Dentist"
+        prefix="dentist"
+        form={form}
+        setForm={setForm}
+      />
+
+      <Section title="Plan Provider">
+        <Input label="Plan Provider" value={form.plan_provider} onChange={(v) => setForm({ ...form, plan_provider: v })} />
+        <Input label="Phone Number" value={form.plan_provider_phone} onChange={(v) => setForm({ ...form, plan_provider_phone: v })} />
+        <Input label="ID Number" value={form.plan_provider_id_number} onChange={(v) => setForm({ ...form, plan_provider_id_number: v })} />
+      </Section>
+    </div>
+  );
+}
+
+function Contacts({ form, setForm }) {
+  return (
+    <div className="admission-grid">
+      <Section title="Legal Guardian / Responsible Person">
+        <Checkbox label="Individual does not have an assigned guardian" checked={form.no_guardian_assigned} onChange={(v) => setForm({ ...form, no_guardian_assigned: v })} />
+        <Input label="Guardian Name" value={form.guardian_name} onChange={(v) => setForm({ ...form, guardian_name: v })} />
+        <Input label="Home Phone" value={form.guardian_home_phone} onChange={(v) => setForm({ ...form, guardian_home_phone: v })} />
+        <Input label="Cell Phone" value={form.guardian_cell_phone} onChange={(v) => setForm({ ...form, guardian_cell_phone: v })} />
+        <Input label="Work Phone" value={form.guardian_work_phone} onChange={(v) => setForm({ ...form, guardian_work_phone: v })} />
+        <Input label="Email" value={form.guardian_email} onChange={(v) => setForm({ ...form, guardian_email: v })} />
+        <Input label="Street Address" value={form.guardian_address} onChange={(v) => setForm({ ...form, guardian_address: v })} />
+        <Input label="City" value={form.guardian_city} onChange={(v) => setForm({ ...form, guardian_city: v })} />
+        <Input label="State" value={form.guardian_state} onChange={(v) => setForm({ ...form, guardian_state: v })} />
+        <Input label="Zip Code" value={form.guardian_zip} onChange={(v) => setForm({ ...form, guardian_zip: v })} />
+      </Section>
+
+      <Section title="Emergency Contact">
+        <Input label="Name" value={form.emergency_contact_name} onChange={(v) => setForm({ ...form, emergency_contact_name: v })} />
+        <Input label="Relationship" value={form.emergency_contact_relationship} onChange={(v) => setForm({ ...form, emergency_contact_relationship: v })} />
+        <Input label="Home Phone" value={form.emergency_contact_home_phone} onChange={(v) => setForm({ ...form, emergency_contact_home_phone: v })} />
+        <Input label="Cell Phone" value={form.emergency_contact_cell_phone} onChange={(v) => setForm({ ...form, emergency_contact_cell_phone: v })} />
+        <Input label="Work Phone" value={form.emergency_contact_work_phone} onChange={(v) => setForm({ ...form, emergency_contact_work_phone: v })} />
+        <Input label="Email" value={form.emergency_contact_email} onChange={(v) => setForm({ ...form, emergency_contact_email: v })} />
+        <Input label="Address" value={form.emergency_contact_address} onChange={(v) => setForm({ ...form, emergency_contact_address: v })} />
+      </Section>
+
+      <Section title="Case Manager">
+        <Input label="Name" value={form.case_manager_name} onChange={(v) => setForm({ ...form, case_manager_name: v })} />
+        <Input label="Home Phone" value={form.case_manager_home_phone} onChange={(v) => setForm({ ...form, case_manager_home_phone: v })} />
+        <Input label="Cell Phone" value={form.case_manager_cell_phone} onChange={(v) => setForm({ ...form, case_manager_cell_phone: v })} />
+        <Input label="Work Phone" value={form.case_manager_work_phone} onChange={(v) => setForm({ ...form, case_manager_work_phone: v })} />
+        <Input label="Email" value={form.case_manager_email} onChange={(v) => setForm({ ...form, case_manager_email: v })} />
+        <Input label="Address" value={form.case_manager_address} onChange={(v) => setForm({ ...form, case_manager_address: v })} />
+      </Section>
+
+      <Section title="Parole Officer">
+        <Input label="Name" value={form.parole_officer_name} onChange={(v) => setForm({ ...form, parole_officer_name: v })} />
+        <Input label="Home Phone" value={form.parole_officer_home_phone} onChange={(v) => setForm({ ...form, parole_officer_home_phone: v })} />
+        <Input label="Cell Phone" value={form.parole_officer_cell_phone} onChange={(v) => setForm({ ...form, parole_officer_cell_phone: v })} />
+        <Input label="Work Phone" value={form.parole_officer_work_phone} onChange={(v) => setForm({ ...form, parole_officer_work_phone: v })} />
+        <Input label="Email" value={form.parole_officer_email} onChange={(v) => setForm({ ...form, parole_officer_email: v })} />
+        <Input label="Address" value={form.parole_officer_address} onChange={(v) => setForm({ ...form, parole_officer_address: v })} />
+      </Section>
+
+      <Section title="Additional Contact 1">
+        <Input label="Name" value={form.additional_contact_1_name} onChange={(v) => setForm({ ...form, additional_contact_1_name: v })} />
+        <Input label="Relationship" value={form.additional_contact_1_relationship} onChange={(v) => setForm({ ...form, additional_contact_1_relationship: v })} />
+        <Input label="Phone" value={form.additional_contact_1_phone} onChange={(v) => setForm({ ...form, additional_contact_1_phone: v })} />
+        <Input label="Email" value={form.additional_contact_1_email} onChange={(v) => setForm({ ...form, additional_contact_1_email: v })} />
+      </Section>
+
+      <Section title="Additional Contact 2">
+        <Input label="Name" value={form.additional_contact_2_name} onChange={(v) => setForm({ ...form, additional_contact_2_name: v })} />
+        <Input label="Relationship" value={form.additional_contact_2_relationship} onChange={(v) => setForm({ ...form, additional_contact_2_relationship: v })} />
+        <Input label="Phone" value={form.additional_contact_2_phone} onChange={(v) => setForm({ ...form, additional_contact_2_phone: v })} />
+        <Input label="Email" value={form.additional_contact_2_email} onChange={(v) => setForm({ ...form, additional_contact_2_email: v })} />
+      </Section>
+    </div>
+  );
+}
+
+function Review({ form }) {
+  return (
+    <div className="review-grid">
+      <ReviewCard
+        title="Resident"
+        rows={[
+          ["Name", `${form.first_name} ${form.last_name}`],
+          ["Nickname", form.nickname],
+          ["DOB", form.date_of_birth],
+          ["Gender", form.gender],
+          ["Admission Date", form.admission_date],
+          ["Diagnosis", form.primary_diagnosis],
+        ]}
+      />
+
+      <ReviewCard
+        title="Health Plan"
+        rows={[
+          ["Health Plan", form.health_plan],
+          ["Plan Name", form.plan_name],
+          ["Plan ID", form.health_plan_id],
+          ["Plan Phone", form.plan_phone],
+        ]}
+      />
+
+      <ReviewCard
+        title="Health Care"
+        rows={[
+          ["PCP", form.pcp_name],
+          ["Behavioral Health Provider", form.behavioral_health_provider_name],
+          ["Therapist", form.therapist_name],
+          ["Dentist", form.dentist_name],
+          ["Hospital Preference", form.hospital_preference],
+        ]}
+      />
+
+      <ReviewCard
+        title="Contacts"
+        rows={[
+          ["Guardian", form.no_guardian_assigned ? "No guardian assigned" : form.guardian_name],
+          ["Guardian Phone", form.guardian_cell_phone || form.guardian_home_phone],
+          ["Emergency Contact", form.emergency_contact_name],
+          ["Case Manager", form.case_manager_name],
+          ["Parole Officer", form.parole_officer_name],
+        ]}
+      />
+    </div>
+  );
+}
+
+function ProviderSection({ title, prefix, form, setForm }) {
+  const nameKey = `${prefix}_name`;
+  const phoneKey = `${prefix}_phone`;
+  const addressKey = `${prefix}_address`;
+  const cityKey = `${prefix}_city`;
+  const stateKey = `${prefix}_state`;
+  const zipKey = `${prefix}_zip`;
+
+  return (
+    <Section title={title}>
+      <Input label="Name" value={form[nameKey]} onChange={(v) => setForm({ ...form, [nameKey]: v })} />
+      <Input label="Phone Number" value={form[phoneKey]} onChange={(v) => setForm({ ...form, [phoneKey]: v })} />
+      <Input label="Street Address" value={form[addressKey]} onChange={(v) => setForm({ ...form, [addressKey]: v })} />
+      <Input label="City" value={form[cityKey]} onChange={(v) => setForm({ ...form, [cityKey]: v })} />
+      <Input label="State" value={form[stateKey]} onChange={(v) => setForm({ ...form, [stateKey]: v })} />
+      <Input label="Zip Code" value={form[zipKey]} onChange={(v) => setForm({ ...form, [zipKey]: v })} />
+    </Section>
+  );
+}
+
+function Section({ title, children }) {
+  return (
+    <div className="admission-card">
+      <h3>{title}</h3>
+      <div className="admission-card-grid">{children}</div>
     </div>
   );
 }
@@ -299,7 +725,12 @@ function Input({ label, value, onChange, type = "text", required }) {
   return (
     <div className="modal-field">
       <label>{label}</label>
-      <input type={type} value={value || ""} onChange={(e) => onChange(e.target.value)} required={required} />
+      <input
+        type={type}
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+      />
     </div>
   );
 }
@@ -315,6 +746,47 @@ function Select({ label, value, onChange, options }) {
           </option>
         ))}
       </select>
+    </div>
+  );
+}
+
+function TextArea({ label, value, onChange }) {
+  return (
+    <div className="modal-field full">
+      <label>{label}</label>
+      <textarea
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+
+function Checkbox({ label, checked, onChange }) {
+  return (
+    <label className="checkbox-line admission-check">
+      <input
+        type="checkbox"
+        checked={!!checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      {label}
+    </label>
+  );
+}
+
+function ReviewCard({ title, rows }) {
+  return (
+    <div className="admission-card">
+      <h3>{title}</h3>
+      <div className="review-list">
+        {rows.map(([label, value]) => (
+          <div className="review-row" key={label}>
+            <span>{label}</span>
+            <strong>{value || "—"}</strong>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -340,4 +812,15 @@ function getInitials(resident) {
 function formatDate(value) {
   if (!value) return "—";
   return new Date(value).toLocaleDateString();
+}
+
+function buildAddress(street, city, state, zip) {
+  return [street, city, state, zip].filter(Boolean).join(", ");
+}
+
+function getStepDescription(step) {
+  if (step === 0) return "Resident face sheet, demographics, diagnosis, allergies, and health plan.";
+  if (step === 1) return "PCP, behavioral health provider, therapist, dentist, hospital, and plan provider.";
+  if (step === 2) return "Guardian, emergency contact, case manager, parole officer, and additional contacts.";
+  return "Review admission information before creating the resident record.";
 }
