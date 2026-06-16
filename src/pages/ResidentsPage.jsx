@@ -28,6 +28,14 @@ import ResidentResponsibilitiesPage from "./admission-disclosures/ResidentRespon
 import NoHarmAgreementPage from "./admission-disclosures/NoHarmAgreementPage";
 import GrievanceProcedurePage from "./admission-disclosures/GrievanceProcedurePage";
 import SearchSeizurePolicyPage from "./admission-disclosures/SearchSeizurePolicyPage";
+import HouseRulesPage from "./admission-disclosures/HouseRulesPage";
+import PersonalBelongingsPage from "./admission-disclosures/PersonalBelongingsPage";
+import MedicationAcknowledgementPage from "./admission-disclosures/MedicationAcknowledgementPage";
+import RecreationWaiverPage from "./admission-disclosures/RecreationWaiverPage";
+import ResidentAccountBalancePage from "./admission-disclosures/ResidentAccountBalancePage";
+import HIPAANoticePage from "./admission-disclosures/HIPAANoticePage";
+import ClientOrientationChecklistPage from "./admission-disclosures/ClientOrientationChecklistPage";
+import ResidentFaceSheetPage from "./admission-disclosures/ResidentFaceSheetPage";
 
 const emptyForm = {
   first_name: "",
@@ -782,6 +790,46 @@ function AdmissionPacketStep({ form, facility, setActiveDisclosure }) {
 	  title: "Search & Seizure Policy",
 	  description: "Resident acknowledges facility search and contraband policy.",
 	},
+	{
+	  id: "house-rules",
+	  title: "House Rules & Behavior Expectations",
+	  description: "Resident acknowledges facility rules, conduct expectations, and discharge belongings policy.",
+	},
+	{
+	  id: "personal-belongings",
+	  title: "Resident Personal Belongings",
+	  description: "Resident belongings inventory with item counts and signatures.",
+	},
+	{
+	  id: "medication-acknowledgement",
+	  title: "Medication Acknowledgement",
+	  description: "Resident acknowledges medication education, side effects, risks, and medication list.",
+	},
+	{
+	  id: "recreation-waiver",
+	  title: "Gym & Community Recreational Facilities Waiver",
+	  description: "Resident acknowledges recreational activity risks and release of liability.",
+	},
+	{
+	  id: "resident-account-balance",
+	  title: "Resident Account Balance Sheet",
+	  description: "Resident funds ledger with receipts, balances, and initials.",
+	},
+	{
+	  id: "hipaa-notice",
+	  title: "HIPAA Notice of Privacy Practices",
+	  description: "Resident acknowledges receipt or offer of the HIPAA privacy notice.",
+	},
+	{
+	  id: "orientation-checklist",
+	  title: "Client Orientation Checklist",
+	  description: "Resident orientation and admission education checklist.",
+	},
+		{
+	  id: "resident-face-sheet",
+	  title: "Resident Face Sheet",
+	  description: "Printable resident demographics, guardian, insurance, diagnosis, provider, pharmacy, and emergency contact summary.",
+	},
   ];
 
   const signatures = form.admission_packet_signatures || {};
@@ -965,8 +1013,76 @@ function DisclosureModal({
 			signatures={signatures}
 			onSignatureChange={onSignatureChange}
 		  />
+		)}
+
+		{disclosureId === "house-rules" && (
+		  <HouseRulesPage
+			resident={resident}
+			facility={facility}
+			signatures={signatures}
+			onSignatureChange={onSignatureChange}
+		  />
+		)}
+		{disclosureId === "personal-belongings" && (
+		  <PersonalBelongingsPage
+			resident={resident}
+			facility={facility}
+			signatures={signatures}
+			onSignatureChange={onSignatureChange}
+		  />
+		)}	
+
+		{disclosureId === "medication-acknowledgement" && (
+		  <MedicationAcknowledgementPage
+			resident={resident}
+			facility={facility}
+			signatures={signatures}
+			onSignatureChange={onSignatureChange}
+		  />
+		)}	
+
+		{disclosureId === "recreation-waiver" && (
+		  <RecreationWaiverPage
+			resident={resident}
+			facility={facility}
+			signatures={signatures}
+			onSignatureChange={onSignatureChange}
+		  />
+		)}
+
+		{disclosureId === "resident-account-balance" && (
+		  <ResidentAccountBalancePage
+			resident={resident}
+			facility={facility}
+			signatures={signatures}
+			onSignatureChange={onSignatureChange}
+		  />
+		)}	
+		{disclosureId === "hipaa-notice" && (
+		  <HIPAANoticePage
+			resident={resident}
+			facility={facility}
+			signatures={signatures}
+			onSignatureChange={onSignatureChange}
+		  />
+		)}
+		{disclosureId === "orientation-checklist" && (
+		  <ClientOrientationChecklistPage
+			resident={resident}
+			facility={facility}
+			signatures={signatures}
+			onSignatureChange={onSignatureChange}
+		  />
+		)}
+		{disclosureId === "resident-face-sheet" && (
+		  <ResidentFaceSheetPage
+			resident={resident}
+			facility={facility}
+			signatures={signatures}
+			onSignatureChange={onSignatureChange}
+		  />
 		)}		
-			
+					
           <div className="modal-actions full">
             <button className="primary-btn" type="button" onClick={onClose}>
               Done
@@ -1180,6 +1296,14 @@ function allAdmissionPacketSigned(signatures = {}) {
 	"no-harm-agreement",
 	"grievance-procedure",
 	"search-seizure-policy",
+	"house-rules",
+	"personal-belongings",
+	"medication-acknowledgement",
+	"recreation-waiver",
+	"resident-account-balance",
+	"hipaa-notice",
+	"orientation-checklist",
+	"resident-face-sheet",
   ];
 
   return required.every((id) => {

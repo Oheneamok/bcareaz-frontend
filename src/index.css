@@ -3089,3 +3089,353 @@ nav {
   padding: 3px 6px;
   min-width: 260px;
 }
+
+.house-rules-wrapper {
+  display: grid;
+  gap: 18px;
+  margin: 22px 0;
+}
+
+.house-rule-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #f8fafc;
+  padding: 18px;
+}
+
+.house-rule-section h3 {
+  margin-top: 0;
+  color: #0f172a;
+}
+.belongings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.belonging-item {
+  display: grid;
+  grid-template-columns: 1fr 90px;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.belonging-item label {
+  font-family: Arial, sans-serif;
+  font-weight: 800;
+  color: #334155;
+}
+
+.belonging-item input {
+  height: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 10px;
+  font-weight: 900;
+  text-align: center;
+}
+
+@media (max-width: 800px) {
+  .belongings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.document-table-card {
+  margin: 24px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #f8fafc;
+  padding: 18px;
+}
+
+.document-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.document-table-header h3 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.document-table-header button {
+  border: 0;
+  border-radius: 12px;
+  background: #2563eb;
+  color: white;
+  padding: 9px 12px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.medication-table {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.medication-table-row {
+  display: grid;
+  grid-template-columns: 1.5fr 0.8fr 1fr 1fr 0.6fr 44px;
+  gap: 10px;
+  align-items: center;
+}
+
+.medication-table-row.header {
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #475569;
+  letter-spacing: 0.04em;
+}
+
+.medication-table-row input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: white;
+  padding: 0 10px;
+  font-size: 14px;
+}
+
+.medication-table-row button {
+  height: 42px;
+  border: 0;
+  border-radius: 12px;
+  background: #fee2e2;
+  color: #991b1b;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .medication-table-row {
+    grid-template-columns: 1fr;
+  }
+
+  .medication-table-row.header {
+    display: none;
+  }
+}
+.account-balance-table {
+  display: grid;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.account-balance-row {
+  display: grid;
+  grid-template-columns: 135px 140px 140px 140px 100px 140px 120px 130px 44px;
+  gap: 8px;
+  align-items: center;
+  min-width: 1120px;
+}
+
+.account-balance-row.header {
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.account-balance-row input,
+.account-balance-row select {
+  height: 40px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: white;
+  padding: 0 10px;
+}
+
+.account-balance-row button {
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: #fee2e2;
+  color: #991b1b;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.document-check-panel {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0;
+  padding: 18px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: #eff6ff;
+  font-family: Arial, sans-serif;
+}
+
+.document-check-panel label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  color: #1e3a8a;
+}
+
+.document-check-panel input {
+  width: 18px;
+  height: 18px;
+}
+.allergy-table {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.allergy-table-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 50px;
+  gap: 10px;
+  align-items: center;
+}
+
+.allergy-table-row.header {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.05em;
+}
+
+.allergy-table-row input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 0 12px;
+  background: white;
+  font-size: 14px;
+}
+
+.allergy-table-row button {
+  height: 42px;
+  width: 42px;
+  border: 0;
+  border-radius: 10px;
+  background: #fee2e2;
+  color: #991b1b;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.orientation-summary-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 18px;
+  border-radius: 18px;
+  margin-bottom: 24px;
+}
+
+.orientation-progress {
+  font-size: 28px;
+  font-weight: 900;
+  color: #2563eb;
+}
+
+.orientation-section {
+  margin-bottom: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 18px;
+  background: #f8fafc;
+}
+
+.orientation-section h3 {
+  margin-top: 0;
+}
+
+.orientation-checklist {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.orientation-check-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.orientation-check-item input {
+  margin-top: 3px;
+}
+
+@media (max-width: 768px) {
+  .orientation-checklist {
+    grid-template-columns: 1fr;
+  }
+}
+.facesheet-section {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 18px;
+  padding: 18px;
+  margin: 18px 0;
+}
+
+.facesheet-section h3 {
+  margin: 0 0 14px;
+  color: #0f172a;
+}
+
+.facesheet-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.facesheet-field {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.facesheet-field.full {
+  grid-column: span 2;
+}
+
+.facesheet-field span {
+  font-family: Arial, sans-serif;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.facesheet-field strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+
+@media (max-width: 800px) {
+  .facesheet-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .facesheet-field.full {
+    grid-column: span 1;
+  }
+}

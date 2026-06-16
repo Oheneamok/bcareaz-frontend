@@ -2,7 +2,15 @@ import { useMemo, useRef } from "react";
 import SignatureCanvas from "react-signature-canvas";
 import { Eraser, FileSignature, Plus, Trash2 } from "lucide-react";
 
-export default function EmergencyMedicalConsentPage({
+const emptyMedication = {
+  medication: "",
+  dose: "",
+  schedule: "",
+  target: "",
+  count: "",
+};
+
+export default function MedicationAcknowledgementPage({
   resident = {},
   facility = {},
   signatures = {},
@@ -17,28 +25,27 @@ export default function EmergencyMedicalConsentPage({
 
   const residentName =
     signatures.resident_name ||
-    resident.full_name ||
     `${resident.first_name || ""} ${resident.last_name || ""}`.trim();
 
-  const medicationAllergies = signatures.medication_allergies || [{ item: "", reaction: "" }];
-  const foodAllergies = signatures.food_allergies || [{ item: "", reaction: "" }];
+  const psychMeds = signatures.psych_medications || [{ ...emptyMedication }];
+  const medicalMeds = signatures.medical_medications || [{ ...emptyMedication }];
 
   function updateField(key, value) {
     onSignatureChange?.(key, value);
   }
 
-  function updateRow(key, index, field, value) {
-    const rows = [...(signatures[key] || [])];
+  function updateMedication(section, index, field, value) {
+    const rows = [...(signatures[section] || [])];
     rows[index] = { ...(rows[index] || {}), [field]: value };
-    updateField(key, rows);
+    updateField(section, rows);
   }
 
-  function addRow(key) {
-    updateField(key, [...(signatures[key] || []), { item: "", reaction: "" }]);
+  function addMedication(section) {
+    updateField(section, [...(signatures[section] || []), { ...emptyMedication }]);
   }
 
-  function removeRow(key, index) {
-    updateField(key, (signatures[key] || []).filter((_, i) => i !== index));
+  function removeMedication(section, index) {
+    updateField(section, (signatures[section] || []).filter((_, i) => i !== index));
   }
 
   function saveSignature(type, ref) {
@@ -55,53 +62,55 @@ export default function EmergencyMedicalConsentPage({
     <div className="disclosure-document-page">
       <div className="disclosure-document-header">
         <div>
-          <p className="dashboard-eyebrow">Admission Disclosure</p>
-          <h1>Routine & Emergency Medical Treatment</h1>
+          <p className="dashboard-eyebrow">Admission Medication Verification</p>
+          <h1>List of Medication</h1>
           <p>{facilityName}</p>
         </div>
         <FileSignature size={34} />
       </div>
 
       <div className="disclosure-document-body">
-        <h2>Consent for Routine & Emergency Medical Treatment</h2>
+        <h2>List of Medication</h2>
 
-        <p>
-          I hereby give consent to {facilityName} to obtain all emergency medical
-          or dental care prescribed by a duly licensed physician (MD), Osteopath
-          (DO) or dentist (D.D.S) for:
-        </p>
+        <p>I have been instructed by staff on the current prescribed medications that I am taking.</p>
 
-        <div className="document-form-grid">
-          <Field label="Resident Name" value={residentName} onChange={(v) => updateField("resident_name", v)} />
-          <Field label="DOB" type="date" value={signatures.date_of_birth || resident.date_of_birth || ""} onChange={(v) => updateField("date_of_birth", v)} />
+        <p>Instruction includes:</p>
+
+        <ul className="document-bullet-list">
+          <li>Dosage/route of medication</li>
+          <li>Use of medication/anticipated results</li>
+          <li>Common side effects</li>
+          <li>Adverse reactions</li>
+          <li>Potential risk of not taking medications as prescribed</li>
+        </ul>
+
+        <MedicationTable
+          title="Psych Medication(s)"
+          rows={psychMeds}
+          onAdd={() => addMedication("psych_medications")}
+          onUpdate={(index, field, value) =>
+            updateMedication("psych_medications", index, field, value)
+          }
+          onRemove={(index) => removeMedication("psych_medications", index)}
+        />
+
+        <MedicationTable
+          title="Medical Medication(s)"
+          rows={medicalMeds}
+          onAdd={() => addMedication("medical_medications")}
+          onUpdate={(index, field, value) =>
+            updateMedication("medical_medications", index, field, value)
+          }
+          onRemove={(index) => removeMedication("medical_medications", index)}
+        />
+
+        <div className="document-simple-line">
+          <label>Allergies:</label>
+          <input
+            value={signatures.allergies || resident.allergies || ""}
+            onChange={(e) => updateField("allergies", e.target.value)}
+          />
         </div>
-
-        <p>
-          This care may be given under whatever conditions are necessary to
-          preserve the life, limb or the well-being of the person named above.
-        </p>
-
-        <AllergyTable
-          title="Medication Allergies"
-          rows={medicationAllergies}
-          onAdd={() => addRow("medication_allergies")}
-          onUpdate={(i, f, v) => updateRow("medication_allergies", i, f, v)}
-          onRemove={(i) => removeRow("medication_allergies", i)}
-        />
-
-        <AllergyTable
-          title="Food Allergies"
-          rows={foodAllergies}
-          onAdd={() => addRow("food_allergies")}
-          onUpdate={(i, f, v) => updateRow("food_allergies", i, f, v)}
-          onRemove={(i) => removeRow("food_allergies", i)}
-        />
-
-        <p>
-          I have been informed that I/we may be responsible for any charges or
-          co-pays not covered by insurance in connection with the treatment or
-          services being rendered.
-        </p>
 
         <SignatureRow
           nameLabel="Resident Name"
@@ -146,46 +155,49 @@ export default function EmergencyMedicalConsentPage({
   );
 }
 
-function Field({ label, value, onChange, type = "text" }) {
+function MedicationTable({ title, rows, onAdd, onUpdate, onRemove }) {
   return (
-    <div className="document-field">
-      <input type={type} value={value || ""} onChange={(e) => onChange(e.target.value)} placeholder={label} />
-      <label>{label}</label>
-    </div>
-  );
-}
-
-function AllergyTable({ title, rows, onAdd, onUpdate, onRemove }) {
-  return (
-    <div className="allergy-card">
-      <div className="allergy-card-header">
+    <div className="document-table-card">
+      <div className="document-table-header">
         <h3>{title}</h3>
         <button type="button" onClick={onAdd}>
-          + Add Row
+          <Plus size={14} />
+          Add Medication
         </button>
       </div>
 
-      <div className="allergy-table">
-        <div className="allergy-table-row header">
-          <strong>Allergy</strong>
-          <strong>Reaction</strong>
+      <div className="medication-table">
+        <div className="medication-table-row header">
+          <strong>Medication</strong>
+          <strong>Dose</strong>
+          <strong>Schedule</strong>
+          <strong>Target</strong>
+          <strong>Count</strong>
           <strong></strong>
         </div>
 
         {rows.map((row, index) => (
-          <div className="allergy-table-row" key={index}>
+          <div className="medication-table-row" key={index}>
             <input
-              value={row.item || ""}
-              onChange={(e) => onUpdate(index, "item", e.target.value)}
-              placeholder="Allergy"
+              value={row.medication || ""}
+              onChange={(e) => onUpdate(index, "medication", e.target.value)}
             />
-
             <input
-              value={row.reaction || ""}
-              onChange={(e) => onUpdate(index, "reaction", e.target.value)}
-              placeholder="Reaction"
+              value={row.dose || ""}
+              onChange={(e) => onUpdate(index, "dose", e.target.value)}
             />
-
+            <input
+              value={row.schedule || ""}
+              onChange={(e) => onUpdate(index, "schedule", e.target.value)}
+            />
+            <input
+              value={row.target || ""}
+              onChange={(e) => onUpdate(index, "target", e.target.value)}
+            />
+            <input
+              value={row.count || ""}
+              onChange={(e) => onUpdate(index, "count", e.target.value)}
+            />
             <button type="button" onClick={() => onRemove(index)}>
               <Trash2 size={14} />
             </button>
@@ -197,25 +209,45 @@ function AllergyTable({ title, rows, onAdd, onUpdate, onRemove }) {
 }
 
 function SignatureRow({
-  nameLabel, nameValue, onNameChange, signatureLabel, savedSignature,
-  sigRef, onSave, onClear, dateValue, onDateChange,
+  nameLabel,
+  nameValue,
+  onNameChange,
+  signatureLabel,
+  savedSignature,
+  sigRef,
+  onSave,
+  onClear,
+  dateValue,
+  onDateChange,
 }) {
   return (
     <div className="document-signature-row">
       <div className="document-field">
-        <input value={nameValue || ""} onChange={(e) => onNameChange(e.target.value)} placeholder={nameLabel} />
+        <input value={nameValue || ""} onChange={(e) => onNameChange(e.target.value)} />
         <label>{nameLabel}</label>
       </div>
+
       <div className="document-signature-pad-field">
         <div className="document-signature-pad">
-          {savedSignature ? <img src={savedSignature} alt={signatureLabel} /> : <SignatureCanvas ref={sigRef} penColor="#0f172a" canvasProps={{ className: "document-signature-canvas" }} />}
+          {savedSignature ? (
+            <img src={savedSignature} alt={signatureLabel} />
+          ) : (
+            <SignatureCanvas
+              ref={sigRef}
+              penColor="#0f172a"
+              canvasProps={{ className: "document-signature-canvas" }}
+            />
+          )}
         </div>
         <label>{signatureLabel}</label>
         <div className="signature-tools">
           <button type="button" onClick={onSave}>Save Signature</button>
-          <button type="button" onClick={onClear}><Eraser size={14} /> Clear</button>
+          <button type="button" onClick={onClear}>
+            <Eraser size={14} /> Clear
+          </button>
         </div>
       </div>
+
       <div className="document-field">
         <input type="date" value={dateValue || ""} onChange={(e) => onDateChange(e.target.value)} />
         <label>Date</label>
