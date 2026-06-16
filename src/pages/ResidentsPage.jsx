@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Search,
@@ -12,9 +12,11 @@ import {
   HeartPulse,
   Phone,
   ClipboardCheck,
+  FileSignature,
 } from "lucide-react";
 
 import api from "../services/api";
+import SignatureCanvas from "react-signature-canvas";
 
 const emptyForm = {
   first_name: "",
@@ -139,6 +141,8 @@ const emptyForm = {
   additional_contact_2_phone: "",
   additional_contact_2_email: "",
 
+  admission_disclosure_signatures: {},
+
   status: "ACTIVE",
 };
 
@@ -146,6 +150,7 @@ const wizardSteps = [
   { label: "Face Sheet", icon: User },
   { label: "Health Care", icon: HeartPulse },
   { label: "Contacts", icon: Phone },
+  { label: "Disclosures", icon: FileSignature },
   { label: "Review & Admit", icon: ClipboardCheck },
 ];
 
@@ -187,7 +192,18 @@ export default function ResidentsPage() {
     try {
       setSaving(true);
 
-      await api.post("/residents", {
+      const disclosureSignatures = form.admission_disclosure_signatures || {};
+      const disclosureKeys = Object.keys(disclosureSignatures);
+      const unsignedRequired = disclosureKeys.filter(
+        (key) => !disclosureSignatures[key]?.resident_signature
+      );
+
+      if (disclosureKeys.length === 0 || unsignedRequired.length > 0) {
+        alert("All required admission disclosures must be opened, reviewed, and signed before admission can be completed.");
+        return;
+      }
+
+      const res = await api.post("/residents", {
         first_name: form.first_name,
         last_name: form.last_name,
         date_of_birth: form.date_of_birth || null,
@@ -210,6 +226,34 @@ export default function ResidentsPage() {
           : "Legal Guardian",
         form_data: form,
       });
+
+      const newResidentId = res.data.id;
+
+      await api.post(`/admission-disclosures/generate/${newResidentId}`);
+
+      const disclosureListRes = await api.get(
+        `/admission-disclosures?resident_id=${newResidentId}`
+      );
+
+      const generatedDisclosures = disclosureListRes.data || [];
+
+      for (const disclosure of generatedDisclosures) {
+        const signatures = disclosureSignatures[disclosure.disclosure_type];
+
+        if (!signatures) continue;
+
+        await api.patch(`/admission-disclosures/${disclosure.id}/sign`, {
+          resident_signature: signatures.resident_signature,
+          guardian_signature: signatures.guardian_signature,
+          staff_signature: signatures.staff_signature,
+          metadata_json: {
+            admission_signed_before_create: true,
+            disclosure_title: disclosure.title,
+          },
+        });
+
+        await api.get(`/admission-disclosures/${disclosure.id}/pdf`);
+      }
 
       setForm(emptyForm);
       setStep(0);
@@ -443,7 +487,8 @@ function AdmissionWizard({
           {step === 0 && <FaceSheet form={form} setForm={setForm} />}
           {step === 1 && <HealthCare form={form} setForm={setForm} />}
           {step === 2 && <Contacts form={form} setForm={setForm} />}
-          {step === 3 && <Review form={form} />}
+          {step === 3 && <AdmissionDisclosuresStep form={form} setForm={setForm} />}
+          {step === 4 && <Review form={form} />}
 
           <div className="wizard-actions">
             <button type="button" className="secondary-btn" onClick={onClose}>
@@ -464,7 +509,13 @@ function AdmissionWizard({
               <button
                 type="button"
                 className="primary-btn"
-                onClick={() => setStep(step + 1)}
+                onClick={() => {
+                  if (step === 3 && !allAdmissionDisclosuresSigned(form)) {
+                    alert("Open every required disclosure and capture the resident signature/mark before continuing.");
+                    return;
+                  }
+                  setStep(step + 1);
+                }}
               >
                 Continue
               </button>
@@ -641,6 +692,426 @@ function Contacts({ form, setForm }) {
     </div>
   );
 }
+
+
+function AdmissionDisclosuresStep({ form, setForm }) {
+  const [templates, setTemplates] = useState([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+
+  useEffect(() => {
+    loadTemplates();
+  }, []);
+
+  async function loadTemplates() {
+    try {
+      setLoadingTemplates(true);
+      const res = await api.get("/admission-disclosures/templates");
+      setTemplates(res.data || []);
+    } catch (err) {
+      console.error(err);
+      setTemplates(fallbackDisclosureTemplates);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  }
+
+  function signatureFor(type) {
+    return form.admission_disclosure_signatures?.[type];
+  }
+
+  function handleSigned(type, signatureData) {
+    setForm({
+      ...form,
+      admission_disclosure_signatures: {
+        ...(form.admission_disclosure_signatures || {}),
+        [type]: signatureData,
+      },
+    });
+    setSelectedTemplate(null);
+  }
+
+  const signedCount = templates.filter((item) =>
+    signatureFor(item.disclosure_type)?.resident_signature
+  ).length;
+
+  const totalCount = templates.length;
+  const progress = totalCount ? Math.round((signedCount / totalCount) * 100) : 0;
+  const completed = totalCount > 0 && signedCount === totalCount;
+
+  return (
+    <div className="admission-grid">
+      <div className="admission-card admission-disclosure-workspace">
+        <div className="admission-disclosure-head">
+          <div>
+            <h3>Required Admission Disclosures</h3>
+            <p className="muted">
+              Each disclosure must be opened, reviewed, and signed or marked by
+              the resident before admission can be completed. Guardian and staff
+              witness signatures may also be captured here.
+            </p>
+          </div>
+
+          <div className={`disclosure-progress-badge ${completed ? "complete" : ""}`}>
+            {signedCount}/{totalCount || 0} Signed
+          </div>
+        </div>
+
+        <div className="admission-disclosure-progress">
+          <div style={{ width: `${progress}%` }} />
+        </div>
+
+        {loadingTemplates ? (
+          <p className="empty-text">Loading required disclosures...</p>
+        ) : (
+          <div className="admission-disclosure-list">
+            {templates.map((item, index) => {
+              const signed = !!signatureFor(item.disclosure_type)?.resident_signature;
+
+              return (
+                <button
+                  type="button"
+                  key={item.disclosure_type}
+                  className={`admission-disclosure-document ${signed ? "signed" : "pending"}`}
+                  onClick={() => setSelectedTemplate(item)}
+                >
+                  <span className={`doc-number ${signed ? "signed" : ""}`}>
+                    {signed ? "✓" : index + 1}
+                  </span>
+
+                  <div>
+                    <strong>{item.title}</strong>
+                    <small>
+                      {signed
+                        ? "Reviewed and signed"
+                        : "Open document and capture signature"}
+                    </small>
+                  </div>
+
+                  <em>{signed ? "Complete" : "Open"}</em>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {!completed && (
+          <div className="disclosure-required-note">
+            All listed disclosures must show <strong>Complete</strong> before the
+            Continue button will work.
+          </div>
+        )}
+      </div>
+
+      {selectedTemplate && (
+        <AdmissionDisclosureReviewModal
+          template={selectedTemplate}
+          existing={signatureFor(selectedTemplate.disclosure_type)}
+          residentName={`${form.first_name || ""} ${form.last_name || ""}`.trim()}
+          guardianName={form.guardian_name}
+          staffName=""
+          onClose={() => setSelectedTemplate(null)}
+          onSigned={(signatureData) =>
+            handleSigned(selectedTemplate.disclosure_type, signatureData)
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+function AdmissionDisclosureReviewModal({
+  template,
+  existing,
+  residentName,
+  guardianName,
+  staffName,
+  onClose,
+  onSigned,
+}) {
+  const residentSig = useRef(null);
+  const guardianSig = useRef(null);
+  const staffSig = useRef(null);
+
+  const [residentTypedName, setResidentTypedName] = useState(residentName || "");
+  const [guardianTypedName, setGuardianTypedName] = useState(guardianName || "");
+  const [staffTypedName, setStaffTypedName] = useState(staffName || "");
+  const [residentMarkConfirmed, setResidentMarkConfirmed] = useState(false);
+
+  function capturePad(ref) {
+    if (!ref.current || ref.current.isEmpty()) return "";
+    return ref.current.toDataURL();
+  }
+
+  function signAndComplete() {
+    const resident_signature = existing?.resident_signature || capturePad(residentSig);
+
+    if (!resident_signature) {
+      alert("Resident signature or mark is required.");
+      return;
+    }
+
+    onSigned({
+      resident_signature,
+      guardian_signature: existing?.guardian_signature || capturePad(guardianSig),
+      staff_signature: existing?.staff_signature || capturePad(staffSig),
+      resident_typed_name: residentTypedName,
+      guardian_typed_name: guardianTypedName,
+      staff_typed_name: staffTypedName,
+      resident_mark_confirmed: residentMarkConfirmed,
+      signed_at: new Date().toISOString(),
+      disclosure_title: template.title,
+      disclosure_type: template.disclosure_type,
+    });
+  }
+
+  return (
+    <div className="modal-backdrop">
+      <div className="premium-modal admission-document-modal">
+        <div className="modal-header">
+          <div>
+            <p className="dashboard-eyebrow">Admission Disclosure Review</p>
+            <h2>{template.title}</h2>
+            <p className="muted">
+              Resident must review this full document and sign or make a mark
+              before this disclosure can be checked complete.
+            </p>
+          </div>
+
+          <button className="icon-close" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="admission-document-body">
+          <div className="actual-document-view">
+            <div className="document-paper">
+              <h2>{template.title}</h2>
+              <p>{template.content}</p>
+
+              <div className="document-signature-lines">
+                <div>
+                  <strong>Resident Name</strong>
+                  <span>{residentTypedName || "—"}</span>
+                </div>
+                <div>
+                  <strong>Guardian / Agent</strong>
+                  <span>{guardianTypedName || "—"}</span>
+                </div>
+                <div>
+                  <strong>Date</strong>
+                  <span>{new Date().toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="signature-capture-grid">
+            <div className="signature-name-row">
+              <Input
+                label="Resident Printed Name"
+                value={residentTypedName}
+                onChange={setResidentTypedName}
+              />
+              <Input
+                label="Guardian / Agent Printed Name"
+                value={guardianTypedName}
+                onChange={setGuardianTypedName}
+              />
+              <Input
+                label="Staff Witness Printed Name"
+                value={staffTypedName}
+                onChange={setStaffTypedName}
+              />
+            </div>
+
+            <SignaturePadBox
+              title="Resident Signature / Mark"
+              sigRef={residentSig}
+              existing={existing?.resident_signature}
+              required
+            />
+
+            <label className="checkbox-line admission-check mark-confirm">
+              <input
+                type="checkbox"
+                checked={residentMarkConfirmed}
+                onChange={(e) => setResidentMarkConfirmed(e.target.checked)}
+              />
+              Resident made a mark or signature after the document was read and
+              explained.
+            </label>
+
+            <SignaturePadBox
+              title="Guardian / Agent Signature"
+              sigRef={guardianSig}
+              existing={existing?.guardian_signature}
+            />
+
+            <SignaturePadBox
+              title="Staff Witness Signature"
+              sigRef={staffSig}
+              existing={existing?.staff_signature}
+            />
+          </div>
+        </div>
+
+        <div className="wizard-actions">
+          <button type="button" className="secondary-btn" onClick={onClose}>
+            Cancel
+          </button>
+
+          <button type="button" className="primary-btn" onClick={signAndComplete}>
+            Sign & Complete Document
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SignaturePadBox({ title, sigRef, existing, required }) {
+  return (
+    <div className="admission-signature-box">
+      <div className="signature-block-header">
+        <h3>
+          {title} {required ? <span className="required-dot">*</span> : null}
+        </h3>
+
+        {!existing && (
+          <button type="button" onClick={() => sigRef.current?.clear()}>
+            Clear
+          </button>
+        )}
+      </div>
+
+      {existing ? (
+        <div className="existing-signature">
+          <img src={existing} alt={title} />
+          <span>Signature already captured</span>
+        </div>
+      ) : (
+        <div className="signature-pad-wrap admission-pad">
+          <SignatureCanvas
+            ref={sigRef}
+            penColor="#0f172a"
+            canvasProps={{ className: "signature-pad" }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function allAdmissionDisclosuresSigned(form) {
+  const signatures = form.admission_disclosure_signatures || {};
+  const keys = Object.keys(signatures);
+
+  if (keys.length < fallbackDisclosureTemplates.length) return false;
+
+  return fallbackDisclosureTemplates.every(
+    (item) => !!signatures[item.disclosure_type]?.resident_signature
+  );
+}
+
+const fallbackDisclosureTemplates = [
+  {
+    disclosure_type: "GENERAL_CONSENT_TREATMENT",
+    title: "General Consent for Treatment",
+    content:
+      "I am asking for behavioral health services and treatment at this facility and agree to accept services and procedures to treat my condition and routine dental and medical care. I understand that I have not been given any guarantees as to the results of services received.",
+  },
+  {
+    disclosure_type: "INFORMED_CONSENT_TREATMENT",
+    title: "Informed Consent for Treatment",
+    content:
+      "I authorize the facility to provide evaluation and treatment services. The proposed treatment, intended outcome, nature, procedure, risks, side effects, and alternatives have been explained to me.",
+  },
+  {
+    disclosure_type: "NOTIFICATION_OF_FEES",
+    title: "Notification of Fees",
+    content:
+      "I understand there are expenses related to my stay and that fees or day rates may be covered by the placing agency. I understand fee changes will be communicated as required.",
+  },
+  {
+    disclosure_type: "RECEIVING_REFUNDING_FEES",
+    title: "Receiving and Refunding Client Fees",
+    content:
+      "Upon discharge, fees paid for services not rendered shall be refunded and prorated based on the date of discharge according to facility policy.",
+  },
+  {
+    disclosure_type: "RELEASE_OF_INFORMATION",
+    title: "Release of Information",
+    content:
+      "I authorize disclosure of selected information as allowed by written consent and understand my records may be protected under 42 CFR Part 2 and other privacy laws.",
+  },
+  {
+    disclosure_type: "EMERGENCY_MEDICAL_TREATMENT",
+    title: "Consent for Routine & Emergency Medical Treatment",
+    content:
+      "I give consent for the facility to obtain emergency medical or dental care under conditions necessary to preserve life, limb, or well-being.",
+  },
+  {
+    disclosure_type: "CONFIDENTIALITY_POLICY",
+    title: "Confidentiality Policy",
+    content:
+      "I understand the facility protects resident confidentiality and will not release privileged information without written consent except as permitted by law.",
+  },
+  {
+    disclosure_type: "RESIDENT_RIGHTS",
+    title: "Resident Rights",
+    content:
+      "I understand my resident rights are documented in the Resident Handbook and have been reviewed or offered for review with staff.",
+  },
+  {
+    disclosure_type: "RESIDENT_RESPONSIBILITIES",
+    title: "Resident Responsibilities",
+    content:
+      "I understand my responsibilities include providing information needed for care, following staff guidance, attending appointments, participating in service planning, and respecting others.",
+  },
+  {
+    disclosure_type: "HOUSE_RULES",
+    title: "House Rules & Behavior Expectations",
+    content:
+      "I understand the facility house rules and behavior expectations including visitor rules, passes, chores, cleanliness, medications, respectful conduct, and drug/alcohol-free expectations.",
+  },
+  {
+    disclosure_type: "SEARCH_SEIZURE_POLICY",
+    title: "Search & Seizure Policy",
+    content:
+      "I understand searches may occur when staff have reasonable suspicion or safety concerns and that searches will be conducted professionally and documented.",
+  },
+  {
+    disclosure_type: "NO_HARM_AGREEMENT",
+    title: "No Harm Agreement",
+    content:
+      "I promise not to hurt myself or anyone else. If I have thoughts of self-harm, suicide, or harming others, I will notify staff immediately.",
+  },
+  {
+    disclosure_type: "GRIEVANCE_PROCEDURE",
+    title: "Grievance Procedure",
+    content:
+      "I understand the grievance procedure and that I may notify staff, the Program Manager, Grievance Coordinator, or Administrator of a complaint or grievance.",
+  },
+  {
+    disclosure_type: "PERSONAL_BELONGINGS",
+    title: "Resident Personal Belongings",
+    content:
+      "I understand my personal belongings will be inventoried at admission and that the belongings record reflects items present at admission.",
+  },
+  {
+    disclosure_type: "RECREATIONAL_WAIVER",
+    title: "Gym & Community Recreational Facilities Waiver",
+    content:
+      "I understand exercise, fitness equipment, and recreational activities may involve risks and I voluntarily assume responsibility for participating.",
+  },
+  {
+    disclosure_type: "MEDICATION_LIST_ACKNOWLEDGEMENT",
+    title: "Medication List Acknowledgement",
+    content:
+      "I acknowledge staff instructed me on current prescribed medications, including dosage, route, purpose, side effects, adverse reactions, and risks of noncompliance.",
+  },
+];
 
 function Review({ form }) {
   return (
@@ -822,5 +1293,6 @@ function getStepDescription(step) {
   if (step === 0) return "Resident face sheet, demographics, diagnosis, allergies, and health plan.";
   if (step === 1) return "PCP, behavioral health provider, therapist, dentist, hospital, and plan provider.";
   if (step === 2) return "Guardian, emergency contact, case manager, parole officer, and additional contacts.";
+  if (step === 3) return "Open each required disclosure, review the full document, and capture signatures before continuing.";
   return "Review admission information before creating the resident record.";
 }
