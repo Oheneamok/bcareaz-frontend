@@ -2954,3 +2954,138 @@ nav {
 .inline-document-input.money {
   max-width: 160px;
 }
+.inline-document-input {
+  border: 0;
+  border-bottom: 2px solid #111827;
+  outline: none;
+  background: transparent;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  padding: 2px 6px;
+  min-width: 140px;
+}
+
+.inline-document-input.money {
+  max-width: 160px;
+}
+.document-inline-input {
+  border: 0;
+  border-bottom: 2px solid #111827;
+  outline: none;
+  background: transparent;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  padding: 2px 6px;
+  min-width: 280px;
+  max-width: 100%;
+}
+
+.document-inline-input.small {
+  min-width: 140px;
+}
+
+.document-signature-row {
+  display: grid;
+  grid-template-columns: 1.15fr 1.25fr 0.65fr;
+  gap: 18px;
+  align-items: end;
+  margin: 34px 0;
+}
+
+.document-field input {
+  width: 100%;
+  height: 44px;
+  border: 0;
+  border-bottom: 2px solid #111827;
+  outline: none;
+  background: transparent;
+  font-size: 16px;
+  font-weight: 800;
+  padding: 0 6px;
+}
+
+.document-field label,
+.document-signature-pad-field label {
+  display: block;
+  text-align: center;
+  margin-top: 7px;
+  font-family: Arial, sans-serif;
+  color: #334155;
+  font-size: 12px;
+}
+
+.document-signature-pad {
+  height: 120px;
+  border: 2px dashed #94a3b8;
+  border-radius: 14px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.document-signature-pad img {
+  max-height: 116px;
+  max-width: 100%;
+}
+
+.document-signature-canvas {
+  width: 100%;
+  height: 120px;
+}
+
+.signature-tools {
+  margin-top: 9px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.signature-tools button {
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #e2e8f0;
+  color: #334155;
+  font-weight: 900;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.signature-tools button:first-child {
+  background: #2563eb;
+  color: white;
+}
+
+@media (max-width: 900px) {
+  .document-signature-row {
+    grid-template-columns: 1fr;
+  }
+
+  .document-inline-input {
+    min-width: 100%;
+  }
+}
+
+.document-simple-line {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: end;
+  margin: 14px 0;
+}
+
+.document-simple-line label {
+  font-weight: 700;
+}
+
+.document-simple-line input {
+  border: 0;
+  border-bottom: 2px solid #111827;
+  outline: none;
+  background: transparent;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  padding: 3px 6px;
+  min-width: 260px;
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -263,6 +263,10 @@ export default function ResidentDetailPage() {
             emptyText="No medication orders found."
           />
         )}
+		
+		{activeTab === "Disclosures" && (
+		  <AdmissionDisclosuresTab residentId={residentId} />
+		)}
 
         {activeTab === "Disclosures" && (
           <AdmissionDisclosuresTab residentId={residentId} />
