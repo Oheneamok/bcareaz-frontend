@@ -36,6 +36,7 @@ import ResidentAccountBalancePage from "./admission-disclosures/ResidentAccountB
 import HIPAANoticePage from "./admission-disclosures/HIPAANoticePage";
 import ClientOrientationChecklistPage from "./admission-disclosures/ClientOrientationChecklistPage";
 import ResidentFaceSheetPage from "./admission-disclosures/ResidentFaceSheetPage";
+import GeneralConsentPage from "./admission-disclosures/GeneralConsentPage";
 
 const emptyForm = {
   first_name: "",
@@ -734,6 +735,11 @@ function Contacts({ form, setForm }) {
 
 function AdmissionPacketStep({ form, facility, setActiveDisclosure }) {
   const documents = [
+	{
+	  id: "general-consent",
+	  title: "General Consent for Treatment",
+	  description: "Resident consents to behavioral health services, routine care, and treatment procedures.",
+	},
     {
       id: "informed-consent",
       title: "Informed Consent for Treatment",
@@ -925,6 +931,15 @@ function DisclosureModal({
               onSignatureChange={onSignatureChange}
             />
           )}
+		  
+		  {disclosureId === "general-consent" && (
+			  <GeneralConsentPage
+				resident={resident}
+				facility={facility}
+				signatures={signatures}
+				onSignatureChange={onSignatureChange}
+			  />
+			)}
 
           {disclosureId === "notification-of-fees" && (
             <NotificationOfFeesPage
@@ -1285,6 +1300,7 @@ function isPacketDocumentSigned(form, documentId) {
 
 function allAdmissionPacketSigned(signatures = {}) {
   const required = [
+    "general-consent",
     "informed-consent",
     "notification-of-fees",
     "receiving-refunding-fees",
