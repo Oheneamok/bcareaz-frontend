@@ -3439,3 +3439,396 @@ nav {
     grid-column: span 1;
   }
 }
+.assessment-workspace {
+  display: grid;
+  gap: 22px;
+}
+
+.assessment-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid #dbeafe;
+  background: linear-gradient(135deg, #ffffff, #eff6ff);
+  border-radius: 26px;
+  padding: 26px;
+}
+
+.assessment-hero h2 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.assessment-hero p {
+  color: #64748b;
+  max-width: 760px;
+}
+
+.assessment-hero-icon {
+  width: 70px;
+  height: 70px;
+  border-radius: 24px;
+  background: #dbeafe;
+  color: #2563eb;
+  display: grid;
+  place-items: center;
+}
+
+.assessment-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.assessment-card {
+  border: 1px solid #e2e8f0;
+  background: white;
+  border-radius: 24px;
+  padding: 22px;
+  display: flex;
+  gap: 16px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+}
+
+.assessment-card:hover {
+  transform: translateY(-2px);
+  border-color: #bfdbfe;
+}
+
+.assessment-card-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  background: #eff6ff;
+  color: #2563eb;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.assessment-card h3 {
+  margin: 0 0 8px;
+  color: #0f172a;
+}
+
+.assessment-card p {
+  margin: 0 0 14px;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.assessment-status {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-weight: 900;
+  color: #475569;
+  font-size: 12px;
+}
+
+.assessment-modal {
+  width: min(1200px, 96vw);
+  max-height: 94vh;
+  overflow-y: auto;
+}
+
+.assessment-modal-body {
+  padding: 24px;
+  background: #f8fafc;
+}
+
+.assessment-form {
+  display: grid;
+  gap: 18px;
+}
+
+.assessment-section {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 22px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+}
+
+.assessment-section h3 {
+  margin: 0 0 16px;
+  color: #0f172a;
+}
+
+.assessment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.assessment-field {
+  display: grid;
+  gap: 7px;
+}
+
+.assessment-field.full {
+  grid-column: 1 / -1;
+}
+
+.assessment-field label {
+  font-size: 12px;
+  font-weight: 900;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.assessment-field input,
+.assessment-field select,
+.assessment-field textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  border-radius: 14px;
+  min-height: 44px;
+  padding: 0 13px;
+  outline: none;
+}
+
+.assessment-field textarea {
+  min-height: 100px;
+  padding: 12px 13px;
+}
+
+.assessment-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  position: sticky;
+  bottom: 0;
+  background: white;
+  border-top: 1px solid #e2e8f0;
+  padding: 16px;
+  border-radius: 0 0 24px 24px;
+}
+
+@media (max-width: 900px) {
+  .assessment-card-grid,
+  .assessment-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.assessment-card-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.assessment-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.assessment-history-panel {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 22px;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+}
+
+.assessment-history-panel h3 {
+  margin-top: 0;
+}
+.premium-resident-detail {
+  padding: 28px;
+  background: radial-gradient(circle at top left, #e0f2fe 0, #f8fafc 32%, #eef2ff 100%);
+  min-height: 100vh;
+}
+
+.premium-profile-hero {
+  border: 1px solid rgba(255,255,255,.75);
+  background: linear-gradient(135deg, #0f172a, #1d4ed8 55%, #06b6d4);
+  color: white;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .18);
+}
+
+.premium-profile-hero .dashboard-eyebrow,
+.premium-profile-hero .hero-subtext { color: #dbeafe; }
+
+.premium-avatar {
+  background: rgba(255,255,255,.18);
+  border: 1px solid rgba(255,255,255,.3);
+  color: white;
+}
+
+.resident-profile-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.premium-info-card,
+.premium-panel,
+.premium-tab-panel {
+  border: 1px solid #e2e8f0;
+  background: rgba(255,255,255,.92);
+  backdrop-filter: blur(12px);
+  border-radius: 24px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, .08);
+}
+
+.premium-tabs {
+  background: rgba(255,255,255,.72);
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 12px;
+  box-shadow: 0 14px 34px rgba(15,23,42,.06);
+}
+
+.resident-tab-button {
+  border-radius: 18px;
+  transition: .18s ease;
+}
+
+.resident-tab-button.active {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(37, 99, 235, .16);
+}
+
+.premium-overview-grid {
+  align-items: stretch;
+}
+
+.inline-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.entity-row {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+
+.entity-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.assessment-card.general {
+  background: linear-gradient(
+    135deg,
+    rgba(59,130,246,.08),
+    rgba(37,99,235,.03)
+  );
+  border: 1px solid rgba(59,130,246,.18);
+}
+
+.assessment-card.general .assessment-card-icon {
+  background: rgba(59,130,246,.12);
+  color: #2563eb;
+}
+.assessment-card.bhp {
+  background: linear-gradient(
+    135deg,
+    rgba(168,85,247,.08),
+    rgba(126,34,206,.03)
+  );
+  border: 1px solid rgba(168,85,247,.18);
+}
+
+.assessment-card.bhp .assessment-card-icon {
+  background: rgba(168,85,247,.12);
+  color: #9333ea;
+}
+.assessment-card.nursing {
+  background: linear-gradient(
+    135deg,
+    rgba(16,185,129,.08),
+    rgba(5,150,105,.03)
+  );
+  border: 1px solid rgba(16,185,129,.18);
+}
+
+.assessment-card.nursing .assessment-card-icon {
+  background: rgba(16,185,129,.12);
+  color: #059669;
+}
+.status-general {
+  background: rgba(59,130,246,.1);
+  color: #2563eb;
+}
+.status-bhp {
+  background: rgba(168,85,247,.1);
+  color: #9333ea;
+}
+.status-nursing {
+  background: rgba(16,185,129,.1);
+  color: #059669;
+}
+.assessment-card.general {
+  border-left: 5px solid #2563eb;
+}
+
+.assessment-card.bhp {
+  border-left: 5px solid #9333ea;
+}
+
+.assessment-card.nursing {
+  border-left: 5px solid #059669;
+}
+.assessment-card.general {
+  background: linear-gradient(135deg, rgba(59,130,246,.1), rgba(37,99,235,.03));
+  border: 1px solid rgba(59,130,246,.22);
+  border-left: 5px solid #2563eb;
+}
+
+.assessment-card.bhp {
+  background: linear-gradient(135deg, rgba(168,85,247,.1), rgba(126,34,206,.03));
+  border: 1px solid rgba(168,85,247,.22);
+  border-left: 5px solid #9333ea;
+}
+
+.assessment-card.nursing {
+  background: linear-gradient(135deg, rgba(16,185,129,.1), rgba(5,150,105,.03));
+  border: 1px solid rgba(16,185,129,.22);
+  border-left: 5px solid #059669;
+}
+
+.assessment-card.general .assessment-card-icon {
+  background: rgba(59,130,246,.14);
+  color: #2563eb;
+}
+
+.assessment-card.bhp .assessment-card-icon {
+  background: rgba(168,85,247,.14);
+  color: #9333ea;
+}
+
+.assessment-card.nursing .assessment-card-icon {
+  background: rgba(16,185,129,.14);
+  color: #059669;
+}
+
+.status-general {
+  background: rgba(59,130,246,.12);
+  color: #1d4ed8;
+}
+
+.status-bhp {
+  background: rgba(168,85,247,.12);
+  color: #7e22ce;
+}
+
+.status-nursing {
+  background: rgba(16,185,129,.12);
+  color: #047857;
+}
