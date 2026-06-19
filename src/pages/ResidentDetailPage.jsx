@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -13,10 +13,22 @@ import {
   CheckSquare,
   X,
   FileSignature,
+  Activity,
+  Edit3,
+  PlusCircle,
 } from "lucide-react";
 
 import api from "../services/api";
-import AdmissionDisclosuresTab from "../components/admission/AdmissionDisclosuresTab";
+import AssessmentsTab from "../components/assessments/AssessmentsTab";
+import TreatmentPlansTab from "../components/treatment-plans/TreatmentPlansTab";
+import CrisisPlansTab from "../components/crisis-plans/CrisisPlansTab";
+import CFTMinutesForm from "../components/cft/CFTMinutesForm";
+import MedicationTab from "../components/medications/MedicationTab";
+import AdmissionDisclosuresTab from "../components/disclosures/AdmissionDisclosuresTab";
+import ResidentDocumentsTab from "../components/documents/ResidentDocumentsTab";
+import ResidentComplianceTab from "../components/compliance/ResidentComplianceTab";
+import ResidentTasksTab from "../components/tasks/ResidentTasksTab";
+import ResidentCalendarTab from "../components/calendar/ResidentCalendarTab";
 
 const tabs = [
   { label: "Overview", icon: User, color: "blue" },
@@ -46,6 +58,7 @@ export default function ResidentDetailPage() {
 
   useEffect(() => {
     loadResident();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [residentId]);
 
   async function loadResident() {
@@ -77,7 +90,7 @@ export default function ResidentDetailPage() {
       admission_date: resident.admission_date || "",
       discharge_date: resident.discharge_date || "",
       status: resident.status || "ACTIVE",
-      diagnosis: resident.diagnosis || "",
+      diagnosis: resident.diagnosis || resident.primary_diagnosis || "",
       guardian_name: resident.guardian_name || "",
       guardian_phone: resident.guardian_phone || "",
       guardian_relationship: resident.guardian_relationship || "",
@@ -86,7 +99,7 @@ export default function ResidentDetailPage() {
       level_of_care: resident.level_of_care || "",
       case_manager_name: resident.case_manager_name || "",
       bhp_name: resident.bhp_name || "",
-      primary_care_provider: resident.primary_care_provider || "",
+      primary_care_provider: resident.primary_care_provider || resident.pcp_name || "",
     });
 
     setShowEditModal(true);
@@ -119,38 +132,45 @@ export default function ResidentDetailPage() {
   if (!resident) return <div className="page">Resident not found.</div>;
 
   return (
-    <div className="resident-detail-page">
+    <div className="resident-detail-page premium-resident-detail">
       <Link to="/residents" className="back-link">
         <ArrowLeft size={17} />
         Back to Residents
       </Link>
 
-      <section className="resident-profile-hero">
+      <section className="resident-profile-hero premium-profile-hero">
         <div className="resident-profile-left">
-          <div className="resident-profile-avatar">{getInitials(resident)}</div>
+          <div className="resident-profile-avatar premium-avatar">
+            {getInitials(resident)}
+          </div>
 
           <div>
             <p className="dashboard-eyebrow">Resident Chart</p>
             <h1>
               {resident.first_name} {resident.last_name}
             </h1>
-            <p>{resident.resident_code || resident.id}</p>
+            <p className="hero-subtext">{resident.resident_code || resident.id}</p>
 
             <div className="profile-badges">
               <span className={`status-badge ${resident.status?.toLowerCase()}`}>
                 {resident.status || "UNKNOWN"}
               </span>
               <span className="soft-badge">{resident.gender || "Gender N/A"}</span>
-              <span className="soft-badge">
-                DOB: {formatDate(resident.date_of_birth)}
-              </span>
+              <span className="soft-badge">DOB: {formatDate(resident.date_of_birth)}</span>
+              <span className="soft-badge">Admit: {formatDate(resident.admission_date)}</span>
             </div>
           </div>
         </div>
 
         <div className="resident-profile-actions">
-          <button onClick={openEditModal}>Edit Profile</button>
-          <button className="dark">Create Task</button>
+          <button onClick={openEditModal}>
+            <Edit3 size={16} />
+            Edit Profile
+          </button>
+          <button className="dark">
+            <PlusCircle size={16} />
+            Create Task
+          </button>
         </div>
       </section>
 
@@ -196,7 +216,7 @@ export default function ResidentDetailPage() {
         />
       </section>
 
-      <section className="resident-tabs big-tabs">
+      <section className="resident-tabs big-tabs premium-tabs">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -216,97 +236,62 @@ export default function ResidentDetailPage() {
         })}
       </section>
 
-      <section className="resident-tab-panel">
+      <section className="resident-tab-panel premium-tab-panel">
         {activeTab === "Overview" && (
           <OverviewTab resident={resident} dashboard={dashboard} residentId={residentId} />
         )}
 
         {activeTab === "Assessments" && (
-          <AssessmentsTab residentId={residentId} />
+          <AssessmentsTab resident={resident} residentId={residentId} />
         )}
 
-        {activeTab === "Treatment Plans" && (
-          <EntityTab
-            title="Treatment Plans"
-            icon={<HeartPulse />}
-            endpoint={`/treatment-plans?resident_id=${residentId}`}
-            pdfBase="/treatment-plans"
-            emptyText="No treatment plans found."
-          />
-        )}
+		{activeTab === "Treatment Plans" && (
+		  <TreatmentPlansTab
+			resident={resident}
+			residentId={residentId}
+		  />
+		)}
 
-        {activeTab === "Crisis Plans" && (
-          <EntityTab
-            title="Crisis Plans"
-            icon={<ShieldAlert />}
-            endpoint={`/crisis-plans?resident_id=${residentId}`}
-            pdfBase="/crisis-plans"
-            emptyText="No crisis plans found."
-          />
-        )}
-
-        {activeTab === "CFT Meetings" && (
-          <EntityTab
-            title="CFT Meetings"
-            icon={<Users />}
-            endpoint={`/cft-meetings?resident_id=${residentId}`}
-            pdfBase="/cft-meetings"
-            emptyText="No CFT meetings found."
-          />
-        )}
-
-        {activeTab === "Medication" && (
-          <EntityTab
-            title="Medication Orders"
-            icon={<Pill />}
-            endpoint={`/medication-orders?resident_id=${residentId}`}
-            emptyText="No medication orders found."
-          />
-        )}
+		{activeTab === "Crisis Plans" && (
+		  <CrisisPlansTab resident={resident} residentId={residentId} />
+		)}
 		
-		{activeTab === "Disclosures" && (
-		  <AdmissionDisclosuresTab residentId={residentId} />
+		{activeTab === "CFT Meetings" && (
+		  <CFTMinutesForm
+			resident={resident}
+			residentId={residentId}
+		  />
+		)}
+
+		{activeTab === "Medication" && (
+		  <MedicationTab resident={resident} residentId={residentId} />
 		)}
 
         {activeTab === "Disclosures" && (
-          <AdmissionDisclosuresTab residentId={residentId} />
+          <AdmissionDisclosuresTab residentId={residentId} resident={resident} />
         )}
 
-        {activeTab === "Documents" && (
-          <EntityTab
-            title="Documents"
-            icon={<FileText />}
-            endpoint={`/documents?entity_type=RESIDENT&entity_id=${residentId}`}
-            emptyText="No documents found."
-          />
-        )}
+		{activeTab === "Documents" && (
+		  <ResidentDocumentsTab resident={resident} residentId={residentId} />
+		)}
 
-        {activeTab === "Compliance" && (
-          <EntityTab
-            title="Compliance Alerts"
-            icon={<ShieldAlert />}
-            endpoint={`/compliance/alerts?resident_id=${residentId}`}
-            emptyText="No compliance alerts found."
-          />
-        )}
+		{activeTab === "Compliance" && (
+		  <ResidentComplianceTab resident={resident} residentId={residentId} />
+		)}
 
-        {activeTab === "Tasks" && (
-          <EntityTab
-            title="Tasks"
-            icon={<CheckSquare />}
-            endpoint={`/tasks?resident_id=${residentId}`}
-            emptyText="No tasks found."
-          />
-        )}
+		{activeTab === "Tasks" && (
+		  <ResidentTasksTab
+			resident={resident}
+			residentId={residentId}
+		  />
+		)}
 
-        {activeTab === "Calendar" && (
-          <EntityTab
-            title="Calendar"
-            icon={<CalendarDays />}
-            endpoint={`/calendar/resident/${residentId}`}
-            emptyText="No calendar events found."
-          />
-        )}
+		{activeTab === "Calendar" && (
+		  <ResidentCalendarTab
+			resident={resident}
+			residentId={residentId}
+		  />
+		)}
       </section>
 
       {showEditModal && editForm && (
@@ -332,7 +317,7 @@ function ResidentEditModal({ form, setForm, onClose, onSubmit, saving }) {
             <h2>Edit Resident Profile</h2>
           </div>
 
-          <button className="icon-close" onClick={onClose}>
+          <button className="icon-close" type="button" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
@@ -341,26 +326,12 @@ function ResidentEditModal({ form, setForm, onClose, onSubmit, saving }) {
           <Input label="First Name" value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} required />
           <Input label="Last Name" value={form.last_name} onChange={(v) => setForm({ ...form, last_name: v })} required />
           <Input label="DOB" type="date" value={form.date_of_birth} onChange={(v) => setForm({ ...form, date_of_birth: v })} />
-
-          <Select
-            label="Gender"
-            value={form.gender}
-            onChange={(v) => setForm({ ...form, gender: v })}
-            options={["", "Male", "Female", "Other"]}
-          />
-
+          <Select label="Gender" value={form.gender} onChange={(v) => setForm({ ...form, gender: v })} options={["", "Male", "Female", "Other"]} />
           <Input label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
           <Input label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
           <Input label="Admission Date" type="date" value={form.admission_date} onChange={(v) => setForm({ ...form, admission_date: v })} />
           <Input label="Discharge Date" type="date" value={form.discharge_date} onChange={(v) => setForm({ ...form, discharge_date: v })} />
-
-          <Select
-            label="Status"
-            value={form.status}
-            onChange={(v) => setForm({ ...form, status: v })}
-            options={["ACTIVE", "PENDING", "INACTIVE", "DISCHARGED"]}
-          />
-
+          <Select label="Status" value={form.status} onChange={(v) => setForm({ ...form, status: v })} options={["ACTIVE", "PENDING", "INACTIVE", "DISCHARGED"]} />
           <Input label="Diagnosis" value={form.diagnosis} onChange={(v) => setForm({ ...form, diagnosis: v })} />
           <Input label="Program" value={form.program} onChange={(v) => setForm({ ...form, program: v })} />
           <Input label="Level of Care" value={form.level_of_care} onChange={(v) => setForm({ ...form, level_of_care: v })} />
@@ -373,20 +344,12 @@ function ResidentEditModal({ form, setForm, onClose, onSubmit, saving }) {
 
           <div className="modal-field full">
             <label>Address</label>
-            <textarea
-              value={form.address || ""}
-              onChange={(e) => setForm({ ...form, address: e.target.value })}
-            />
+            <textarea value={form.address || ""} onChange={(e) => setForm({ ...form, address: e.target.value })} />
           </div>
 
           <div className="modal-actions full">
-            <button type="button" className="secondary-btn" onClick={onClose}>
-              Cancel
-            </button>
-
-            <button className="primary-btn" disabled={saving}>
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
+            <button type="button" className="secondary-btn" onClick={onClose}>Cancel</button>
+            <button className="primary-btn" disabled={saving}>{saving ? "Saving..." : "Save Changes"}</button>
           </div>
         </form>
       </div>
@@ -396,17 +359,20 @@ function ResidentEditModal({ form, setForm, onClose, onSubmit, saving }) {
 
 function OverviewTab({ resident, dashboard, residentId }) {
   return (
-    <div className="overview-grid">
+    <div className="overview-grid premium-overview-grid">
       <div className="premium-panel wide">
-        <h3>Clinical Snapshot</h3>
+        <h3>
+          <span className="inline-icon"><Activity size={18} /></span>
+          Clinical Snapshot
+        </h3>
 
         <div className="overview-list">
-          <Row label="Diagnosis" value={resident.diagnosis || "—"} />
+          <Row label="Diagnosis" value={resident.diagnosis || resident.primary_diagnosis || "—"} />
           <Row label="Program" value={resident.program || "—"} />
           <Row label="Level of Care" value={resident.level_of_care || "—"} />
           <Row label="Assigned Case Manager" value={resident.case_manager_name || "—"} />
           <Row label="Assigned BHP" value={resident.bhp_name || "—"} />
-          <Row label="PCP" value={resident.primary_care_provider || "—"} />
+          <Row label="PCP" value={resident.primary_care_provider || resident.pcp_name || "—"} />
         </div>
       </div>
 
@@ -422,24 +388,13 @@ function OverviewTab({ resident, dashboard, residentId }) {
   );
 }
 
-function AssessmentsTab({ residentId }) {
-  return (
-    <EntityTab
-      title="Assessments"
-      icon={<ClipboardCheck />}
-      endpoint={`/assessments?resident_id=${residentId}`}
-      pdfBase="/assessments"
-      emptyText="No assessments found."
-    />
-  );
-}
-
 function EntityTab({ title, icon, endpoint, emptyText, pdfBase }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endpoint]);
 
   async function loadItems() {
@@ -459,7 +414,8 @@ function EntityTab({ title, icon, endpoint, emptyText, pdfBase }) {
     if (!pdfBase) return;
     try {
       const res = await api.get(`${pdfBase}/${itemId}/pdf`);
-      if (res.data?.download_url) window.open(res.data.download_url, "_blank");
+      const url = res.data?.download_url || res.data?.url || res.data?.document_url;
+      if (url) window.open(url, "_blank");
     } catch (err) {
       console.error(err);
       alert("Unable to generate PDF.");
@@ -484,27 +440,13 @@ function EntityTab({ title, icon, endpoint, emptyText, pdfBase }) {
           {items.map((item) => (
             <div key={item.id} className="entity-row">
               <div>
-                <strong>
-                  {item.title ||
-                    item.assessment_type ||
-                    item.plan_date ||
-                    item.meeting_type ||
-                    item.document_type ||
-                    item.task_type ||
-                    item.event_type ||
-                    item.status ||
-                    "Record"}
-                </strong>
+                <strong>{getEntityTitle(item)}</strong>
                 <p>{item.status || item.created_at || item.appointment_date || "—"}</p>
               </div>
 
               <div className="entity-actions">
                 <span>{formatDate(item.created_at || item.plan_date || item.meeting_date)}</span>
-                {pdfBase && (
-                  <button className="secondary-btn" onClick={() => generatePdf(item.id)}>
-                    PDF
-                  </button>
-                )}
+                {pdfBase && <button className="secondary-btn" onClick={() => generatePdf(item.id)}>PDF</button>}
               </div>
             </div>
           ))}
@@ -518,12 +460,7 @@ function Input({ label, value, onChange, type = "text", required }) {
   return (
     <div className="modal-field">
       <label>{label}</label>
-      <input
-        type={type}
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-      />
+      <input type={type} value={value || ""} onChange={(e) => onChange(e.target.value)} required={required} />
     </div>
   );
 }
@@ -533,11 +470,7 @@ function Select({ label, value, onChange, options }) {
     <div className="modal-field">
       <label>{label}</label>
       <select value={value || ""} onChange={(e) => onChange(e.target.value)}>
-        {options.map((option) => (
-          <option key={option || "blank"} value={option}>
-            {option || "Select"}
-          </option>
-        ))}
+        {options.map((option) => <option key={option || "blank"} value={option}>{option || "Select"}</option>)}
       </select>
     </div>
   );
@@ -545,15 +478,12 @@ function Select({ label, value, onChange, options }) {
 
 function InfoCard({ title, icon, items }) {
   return (
-    <div className="resident-info-card">
+    <div className="resident-info-card premium-info-card">
       <div className="info-card-title">
         <span>{icon}</span>
         <h3>{title}</h3>
       </div>
-
-      {items.map(([label, value]) => (
-        <Row key={label} label={label} value={value} />
-      ))}
+      {items.map(([label, value]) => <Row key={label} label={label} value={value} />)}
     </div>
   );
 }
@@ -580,6 +510,20 @@ function getInitials(resident) {
   const first = resident.first_name?.[0] || "";
   const last = resident.last_name?.[0] || "";
   return `${first}${last}` || "R";
+}
+
+function getEntityTitle(item) {
+  return (
+    item.title ||
+    item.assessment_type ||
+    item.plan_date ||
+    item.meeting_type ||
+    item.document_type ||
+    item.task_type ||
+    item.event_type ||
+    item.status ||
+    "Record"
+  );
 }
 
 function formatDate(value) {
