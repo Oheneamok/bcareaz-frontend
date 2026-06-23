@@ -1,15 +1,43 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   CalendarDays,
   CheckCircle2,
   Clock,
   Filter,
   MapPin,
   Plus,
+  RefreshCw,
   Search,
+  Sparkles,
 } from "lucide-react";
 
 import api from "../services/api";
+
+const eventTypes = [
+  ["APPOINTMENT", "Appointment"],
+  ["PSYCHIATRY", "Psychiatry"],
+  ["PCP", "PCP"],
+  ["THERAPY", "Therapy"],
+  ["CFT_MEETING", "CFT Meeting"],
+  ["MEDICATION", "Medication"],
+  ["COMPLIANCE_DUE", "Compliance Due"],
+  ["STAFF_TRAINING", "Staff Training"],
+  ["FACILITY_INSPECTION", "Facility Inspection"],
+  ["OTHER", "Other"],
+];
+
+const emptyForm = {
+  title: "",
+  event_type: "APPOINTMENT",
+  start_time: "",
+  end_time: "",
+  resident_id: "",
+  staff_id: "",
+  location: "",
+  description: "",
+  priority: "NORMAL",
+};
 
 export default function CalendarPage() {
   const [events, setEvents] = useState([]);
@@ -18,18 +46,10 @@ export default function CalendarPage() {
   const [eventType, setEventType] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
-
-  const [form, setForm] = useState({
-    title: "",
-    event_type: "APPOINTMENT",
-    start_time: "",
-    end_time: "",
-    resident_id: "",
-    staff_id: "",
-    location: "",
-    description: "",
-    priority: "NORMAL",
-  });
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  
+  const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
     loadCalendar();
@@ -39,13 +59,22 @@ export default function CalendarPage() {
     try {
       setLoading(true);
 
-      const [eventsRes, upcomingRes] = await Promise.all([
+      const [eventsRes, upcomingRes] = await Promise.allSettled([
         api.get("/calendar/events"),
         api.get("/calendar/upcoming"),
       ]);
 
-      setEvents(eventsRes.data || []);
-      setUpcoming(upcomingRes.data || []);
+      setEvents(
+        eventsRes.status === "fulfilled" && Array.isArray(eventsRes.value.data)
+          ? eventsRes.value.data
+          : []
+      );
+
+      setUpcoming(
+        upcomingRes.status === "fulfilled" && Array.isArray(upcomingRes.value.data)
+          ? upcomingRes.value.data
+          : []
+      );
     } catch (err) {
       console.error(err);
     } finally {
@@ -57,11 +86,13 @@ export default function CalendarPage() {
     e.preventDefault();
 
     if (!form.title || !form.event_type || !form.start_time) {
-      alert("Title, event type, and start time are required.");
+      showToast("error", "Title, event type, and start time are required.");
       return;
     }
 
     try {
+      setSaving(true);
+
       await api.post("/calendar/events", {
         ...form,
         resident_id: form.resident_id || null,
@@ -69,24 +100,20 @@ export default function CalendarPage() {
         end_time: form.end_time || null,
       });
 
-      setForm({
-        title: "",
-        event_type: "APPOINTMENT",
-        start_time: "",
-        end_time: "",
-        resident_id: "",
-        staff_id: "",
-        location: "",
-        description: "",
-        priority: "NORMAL",
-      });
-
+      setForm(emptyForm);
       await loadCalendar();
     } catch (err) {
       console.error(err);
-      alert("Unable to create event.");
+      showToast("error", "Unable to Create Event", "Please try again.");
+    } finally {
+      setSaving(false);
     }
   }
+
+	function showToast(type, title, message) {
+	  setToast({ type, title, message });
+	  setTimeout(() => setToast(null), 3500);
+	}
 
   async function completeEvent(eventId) {
     try {
@@ -99,7 +126,7 @@ export default function CalendarPage() {
       await loadCalendar();
     } catch (err) {
       console.error(err);
-      alert("Unable to complete event.");
+      showToast("error", "Unable to complete event", "Please try again.");
     }
   }
 
@@ -108,9 +135,11 @@ export default function CalendarPage() {
       const query = search.toLowerCase();
 
       const matchesSearch =
+        !query ||
         event.title?.toLowerCase().includes(query) ||
         event.event_type?.toLowerCase().includes(query) ||
-        event.location?.toLowerCase().includes(query);
+        event.location?.toLowerCase().includes(query) ||
+        event.description?.toLowerCase().includes(query);
 
       const matchesType = eventType ? event.event_type === eventType : true;
       const matchesStatus = status ? event.status === status : true;
@@ -119,126 +148,168 @@ export default function CalendarPage() {
     });
   }, [events, search, eventType, status]);
 
+  const metrics = useMemo(() => {
+    const completed = events.filter((e) => e.is_completed).length;
+    const highPriority = events.filter(
+      (e) => e.priority === "HIGH" || e.priority === "CRITICAL"
+    ).length;
+    const overdue = events.filter(
+      (e) =>
+        !e.is_completed &&
+        e.start_time &&
+        new Date(e.start_time) < new Date()
+    ).length;
+
+    return { completed, highPriority, overdue };
+  }, [events]);
+
   return (
-    <div className="calendar-page">
-      <section className="resident-hero">
+    <div className="calendar-page premium-calendar-page">
+      <section className="calendar-premium-hero">
         <div>
-          <p className="dashboard-eyebrow">Scheduling</p>
+          <p className="dashboard-eyebrow">
+            <Sparkles size={15} />
+            Scheduling Center
+          </p>
           <h1>Calendar</h1>
           <p>
             Schedule appointments, CFT meetings, staff events, compliance
-            deadlines, facility inspections, and medication-related reminders.
+            deadlines, facility inspections, and medication reminders.
           </p>
+			{toast && (
+			  <div className={`premium-toast ${toast.type}`}>
+				<div className="premium-toast-icon">
+				  {toast.type === "error" ? "!" : "✓"}
+				</div>
+
+				<div>
+				  <strong>{toast.title}</strong>
+				  <p>{toast.message}</p>
+				</div>
+
+				<button type="button" onClick={() => setToast(null)}>
+				  ×
+				</button>
+			  </div>
+			)}		  
+		  
         </div>
+
+        <button type="button" onClick={loadCalendar}>
+          <RefreshCw size={17} />
+          Refresh Calendar
+        </button>
       </section>
 
-      <section className="resident-summary-grid task-summary-grid">
-        <SummaryCard
-          title="Total Events"
-          value={events.length}
-          icon={<CalendarDays />}
-        />
-
-        <SummaryCard
-          title="Upcoming"
-          value={upcoming.length}
-          icon={<Clock />}
-        />
-
-        <SummaryCard
-          title="Completed"
-          value={events.filter((e) => e.is_completed).length}
-          icon={<CheckCircle2 />}
-        />
-
-        <SummaryCard
-          title="High Priority"
-          value={events.filter((e) => e.priority === "HIGH" || e.priority === "CRITICAL").length}
-          icon={<Filter />}
-        />
+      <section className="calendar-metric-grid">
+        <SummaryCard title="Total Events" value={events.length} icon={<CalendarDays />} tone="blue" />
+        <SummaryCard title="Upcoming" value={upcoming.length} icon={<Clock />} tone="indigo" />
+        <SummaryCard title="Completed" value={metrics.completed} icon={<CheckCircle2 />} tone="green" />
+        <SummaryCard title="High Priority" value={metrics.highPriority} icon={<AlertTriangle />} tone={metrics.highPriority ? "red" : "amber"} />
       </section>
+	  
+	  
 
-      <section className="calendar-create-card">
+      <section className="calendar-create-card premium-create-card">
         <div className="panel-header">
-          <h3>
-            <Plus size={18} />
-            Create Calendar Event
-          </h3>
+          <div>
+            <p className="dashboard-eyebrow">New Event</p>
+            <h3>
+              <Plus size={18} />
+              Create Calendar Event
+            </h3>
+          </div>
         </div>
 
-        <form className="calendar-form" onSubmit={createEvent}>
-          <input
-            placeholder="Event title"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-          />
+        <form className="calendar-form premium-calendar-form" onSubmit={createEvent}>
+          <Field label="Event Title">
+            <input
+              placeholder="Example: Psychiatry appointment"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+            />
+          </Field>
 
-          <select
-            value={form.event_type}
-            onChange={(e) => setForm({ ...form, event_type: e.target.value })}
-          >
-            <option value="APPOINTMENT">Appointment</option>
-            <option value="PSYCHIATRY">Psychiatry</option>
-            <option value="PCP">PCP</option>
-            <option value="THERAPY">Therapy</option>
-            <option value="CFT_MEETING">CFT Meeting</option>
-            <option value="MEDICATION">Medication</option>
-            <option value="COMPLIANCE_DUE">Compliance Due</option>
-            <option value="STAFF_TRAINING">Staff Training</option>
-            <option value="FACILITY_INSPECTION">Facility Inspection</option>
-            <option value="OTHER">Other</option>
-          </select>
+          <Field label="Event Type">
+            <select
+              value={form.event_type}
+              onChange={(e) => setForm({ ...form, event_type: e.target.value })}
+            >
+              {eventTypes.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </Field>
 
-          <input
-            type="datetime-local"
-            value={form.start_time}
-            onChange={(e) => setForm({ ...form, start_time: e.target.value })}
-          />
+          <Field label="Start Time">
+            <input
+              type="datetime-local"
+              value={form.start_time}
+              onChange={(e) => setForm({ ...form, start_time: e.target.value })}
+            />
+          </Field>
 
-          <input
-            type="datetime-local"
-            value={form.end_time}
-            onChange={(e) => setForm({ ...form, end_time: e.target.value })}
-          />
+          <Field label="End Time">
+            <input
+              type="datetime-local"
+              value={form.end_time}
+              onChange={(e) => setForm({ ...form, end_time: e.target.value })}
+            />
+          </Field>
 
-          <input
-            placeholder="Resident ID"
-            value={form.resident_id}
-            onChange={(e) => setForm({ ...form, resident_id: e.target.value })}
-          />
+          <Field label="Resident ID">
+            <input
+              placeholder="Optional resident id"
+              value={form.resident_id}
+              onChange={(e) => setForm({ ...form, resident_id: e.target.value })}
+            />
+          </Field>
 
-          <input
-            placeholder="Staff ID"
-            value={form.staff_id}
-            onChange={(e) => setForm({ ...form, staff_id: e.target.value })}
-          />
+          <Field label="Staff ID">
+            <input
+              placeholder="Optional staff id"
+              value={form.staff_id}
+              onChange={(e) => setForm({ ...form, staff_id: e.target.value })}
+            />
+          </Field>
 
-          <input
-            placeholder="Location"
-            value={form.location}
-            onChange={(e) => setForm({ ...form, location: e.target.value })}
-          />
+          <Field label="Location">
+            <input
+              placeholder="Location"
+              value={form.location}
+              onChange={(e) => setForm({ ...form, location: e.target.value })}
+            />
+          </Field>
 
-          <select
-            value={form.priority}
-            onChange={(e) => setForm({ ...form, priority: e.target.value })}
-          >
-            <option value="NORMAL">Normal</option>
-            <option value="HIGH">High</option>
-            <option value="CRITICAL">Critical</option>
-          </select>
+          <Field label="Priority">
+            <select
+              value={form.priority}
+              onChange={(e) => setForm({ ...form, priority: e.target.value })}
+            >
+              <option value="NORMAL">Normal</option>
+              <option value="HIGH">High</option>
+              <option value="CRITICAL">Critical</option>
+            </select>
+          </Field>
 
-          <input
-            placeholder="Description"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
+          <Field label="Description" full>
+            <textarea
+              placeholder="Notes, transport needs, reminders, or instructions..."
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+          </Field>
 
-          <button type="submit">Create Event</button>
+          <div className="calendar-form-actions">
+            <button type="submit" disabled={saving}>
+              <Plus size={16} />
+              {saving ? "Creating..." : "Create Event"}
+            </button>
+          </div>
         </form>
       </section>
 
-      <section className="resident-toolbar">
+      <section className="calendar-toolbar premium-calendar-toolbar">
         <div className="resident-search">
           <Search size={18} />
           <input
@@ -250,14 +321,9 @@ export default function CalendarPage() {
 
         <select value={eventType} onChange={(e) => setEventType(e.target.value)}>
           <option value="">All Types</option>
-          <option value="APPOINTMENT">Appointment</option>
-          <option value="PSYCHIATRY">Psychiatry</option>
-          <option value="PCP">PCP</option>
-          <option value="THERAPY">Therapy</option>
-          <option value="CFT_MEETING">CFT Meeting</option>
-          <option value="COMPLIANCE_DUE">Compliance Due</option>
-          <option value="STAFF_TRAINING">Staff Training</option>
-          <option value="FACILITY_INSPECTION">Facility Inspection</option>
+          {eventTypes.map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
         </select>
 
         <select value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -268,10 +334,11 @@ export default function CalendarPage() {
         </select>
       </section>
 
-      <section className="calendar-layout">
-        <div className="premium-table-card">
+      <section className="calendar-layout premium-calendar-layout">
+        <div className="premium-table-card calendar-main-card">
           <div className="table-header">
             <div>
+              <p className="dashboard-eyebrow">Agenda</p>
               <h3>Calendar Events</h3>
               <p>{filteredEvents.length} event(s)</p>
             </div>
@@ -294,24 +361,30 @@ export default function CalendarPage() {
           )}
         </div>
 
-        <div className="premium-panel">
+        <div className="premium-panel calendar-upcoming-panel">
           <div className="panel-header">
-            <h3>Upcoming</h3>
-            <CalendarDays size={18} />
+            <div>
+              <p className="dashboard-eyebrow">Next</p>
+              <h3>Upcoming</h3>
+            </div>
+            <CalendarDays size={20} />
           </div>
 
           {upcoming.length === 0 ? (
             <p className="empty-text">No upcoming events.</p>
           ) : (
-            <div className="entity-list">
+            <div className="calendar-upcoming-list">
               {upcoming.slice(0, 8).map((event) => (
-                <div key={event.id} className="entity-row">
-                  <div>
-                    <strong>{event.title}</strong>
-                    <p>{event.event_type}</p>
+                <div key={event.id} className="calendar-upcoming-row">
+                  <div className="mini-date-chip">
+                    <strong>{day(event.start_time)}</strong>
+                    <span>{month(event.start_time)}</span>
                   </div>
 
-                  <span>{formatDateTime(event.start_time)}</span>
+                  <div>
+                    <strong>{event.title}</strong>
+                    <p>{formatType(event.event_type)} · {formatTime(event.start_time)}</p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -322,10 +395,19 @@ export default function CalendarPage() {
   );
 }
 
+function Field({ label, children, full = false }) {
+  return (
+    <label className={`calendar-field ${full ? "full" : ""}`}>
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
 function EventCard({ event, onComplete }) {
   return (
-    <div className={`calendar-event-card ${event.priority?.toLowerCase()}`}>
-      <div className="event-date-box">
+    <div className={`calendar-event-card premium-event-card ${event.priority?.toLowerCase()}`}>
+      <div className="event-date-box premium-date-box">
         <strong>{day(event.start_time)}</strong>
         <span>{month(event.start_time)}</span>
       </div>
@@ -340,7 +422,7 @@ function EventCard({ event, onComplete }) {
           </div>
 
           <span className={`status-badge ${event.status?.toLowerCase()}`}>
-            {event.status}
+            {event.status || "SCHEDULED"}
           </span>
         </div>
 
@@ -369,9 +451,9 @@ function EventCard({ event, onComplete }) {
   );
 }
 
-function SummaryCard({ title, value, icon }) {
+function SummaryCard({ title, value, icon, tone }) {
   return (
-    <div className="resident-summary-card">
+    <div className={`calendar-summary-card ${tone}`}>
       <div className="summary-icon">{icon}</div>
       <div>
         <p>{title}</p>
@@ -381,9 +463,21 @@ function SummaryCard({ title, value, icon }) {
   );
 }
 
+function formatType(value) {
+  return `${value || ""}`.replaceAll("_", " ");
+}
+
 function formatDateTime(value) {
   if (!value) return "—";
   return new Date(value).toLocaleString();
+}
+
+function formatTime(value) {
+  if (!value) return "—";
+  return new Date(value).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function day(value) {

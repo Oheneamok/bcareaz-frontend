@@ -6,6 +6,7 @@ import {
   BookOpenCheck,
   BriefcaseBusiness,
   CalendarDays,
+  AlertTriangle,
   CheckCircle2,
   ClipboardCheck,
   FileText,
@@ -13,7 +14,11 @@ import {
   Mail,
   MessageSquareText,
   Phone,
+  RefreshCw,
+  Save,
   ShieldCheck,
+  Upload,
+  X,
   Star,
   UserRound,
 } from "lucide-react";
@@ -49,6 +54,11 @@ export default function StaffDetailPage() {
   const [ce, setCe] = useState([]);
   const [certs, setCerts] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [staffChecklist, setStaffChecklist] = useState(null);
+  const [checklistLoading, setChecklistLoading] = useState(false);
+  const [taskModalItem, setTaskModalItem] = useState(null);
+  const [taskSaving, setTaskSaving] = useState(false);
+  const [taskMessage, setTaskMessage] = useState("");
   const [activeTab, setActiveTab] = useState("Overview");
   const [loading, setLoading] = useState(true);
 
@@ -60,13 +70,14 @@ export default function StaffDetailPage() {
     try {
       setLoading(true);
 
-      const [staffRes, assignmentsRes, ceRes, certRes, alertsRes] =
+      const [staffRes, assignmentsRes, ceRes, certRes, alertsRes, checklistRes] =
         await Promise.allSettled([
           api.get(`/staff/${staffId}`),
           api.get(`/staff-compliance/training-assignments?staff_id=${staffId}`),
           api.get(`/staff-compliance/continuing-education?staff_id=${staffId}`),
           api.get(`/staff-compliance/certifications?staff_id=${staffId}`),
           api.get(`/staff-compliance/alerts?staff_id=${staffId}`),
+          api.get(`/staff-compliance/checklist/${staffId}`),
         ]);
 
       if (staffRes.status === "fulfilled") setStaff(staffRes.value.data);
@@ -75,12 +86,47 @@ export default function StaffDetailPage() {
       setCe(getArray(ceRes));
       setCerts(getArray(certRes));
       setAlerts(getArray(alertsRes));
+      setStaffChecklist(getChecklist(checklistRes));
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
   }
+
+  async function refreshStaffCompliance() {
+    try {
+      setChecklistLoading(true);
+      const [alertsRes, checklistRes] = await Promise.allSettled([
+        api.get(`/staff-compliance/alerts?staff_id=${staffId}`),
+        api.get(`/staff-compliance/checklist/${staffId}`),
+      ]);
+
+      setAlerts(getArray(alertsRes));
+      setStaffChecklist(getChecklist(checklistRes));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setChecklistLoading(false);
+    }
+  }
+
+  const complianceItems = useMemo(() => normalizeChecklistItems(staffChecklist), [staffChecklist]);
+
+  const complianceSummary = useMemo(() => {
+    const total = complianceItems.length;
+    const compliant = complianceItems.filter((item) => isCompliant(item.status)).length;
+    const missing = complianceItems.filter((item) => isMissing(item.status)).length;
+    const review = Math.max(total - compliant - missing, 0);
+    const score = total ? Math.round((compliant / total) * 100) : 0;
+
+    return { total, compliant, missing, review, score };
+  }, [complianceItems]);
+
+  const missingComplianceItems = useMemo(
+    () => complianceItems.filter((item) => !isCompliant(item.status)),
+    [complianceItems]
+  );
 
   const stats = useMemo(() => {
     const completedAssignments = assignments.filter(
@@ -106,15 +152,46 @@ export default function StaffDetailPage() {
       Math.max(0, Math.round((goodItems / totalComplianceItems) * 100))
     );
 
+    const reconciledScore = complianceSummary.total ? complianceSummary.score : score;
+
     return {
       completedAssignments,
       pendingAssignments: assignments.length - completedAssignments,
       ceHours,
       openAlerts,
       expiredCerts,
-      score,
+      score: reconciledScore,
     };
-  }, [assignments, ce, certs, alerts]);
+  }, [assignments, ce, certs, alerts, complianceSummary]);
+
+
+  function openComplianceTask(item) {
+    setTaskMessage("");
+    setTaskModalItem(item);
+  }
+
+  async function saveComplianceTask(formValues) {
+    if (!taskModalItem) return;
+
+    try {
+      setTaskSaving(true);
+      setTaskMessage("");
+
+      const endpoint = getStaffComplianceSaveEndpoint(taskModalItem);
+      const payload = buildStaffCompliancePayload(taskModalItem, staffId, formValues);
+
+      await api.post(endpoint, payload);
+
+      setTaskMessage("Evidence saved. Refreshing compliance checklist...");
+      await loadStaff();
+      setTaskModalItem(null);
+    } catch (err) {
+      console.error(err);
+      setTaskMessage(getApiErrorMessage(err) || "Could not save compliance evidence.");
+    } finally {
+      setTaskSaving(false);
+    }
+  }
 
   if (loading) return <div className="page">Loading staff profile...</div>;
   if (!staff) return <div className="page">Staff not found.</div>;
@@ -202,8 +279,8 @@ export default function StaffDetailPage() {
           accent="green"
           items={[
             ["Score", `${stats.score}%`, null],
+            ["Missing Items", complianceSummary.missing, null],
             ["Open Alerts", stats.openAlerts.length, null],
-            ["Expired Credentials", stats.expiredCerts.length, null],
           ]}
         />
 
@@ -218,6 +295,15 @@ export default function StaffDetailPage() {
           ]}
         />
       </section>
+
+      <MissingCompliancePanel
+        items={missingComplianceItems}
+        summary={complianceSummary}
+        loading={checklistLoading}
+        onRefresh={refreshStaffCompliance}
+        onOpenCompliance={() => setActiveTab("Compliance")}
+        onOpenTask={openComplianceTask}
+      />
 
       <section className="staff-tab-shell">
         {tabs.map((tab) => {
@@ -268,7 +354,16 @@ export default function StaffDetailPage() {
         )}
 
         {activeTab === "Compliance" && (
-          <StaffComplianceTab staff={staff} staffId={staffId} />
+          <div className="staff-compliance-reconciled-grid">
+            <StaffMissingComplianceChecklist
+              items={complianceItems}
+              summary={complianceSummary}
+              loading={checklistLoading}
+              onRefresh={refreshStaffCompliance}
+              onOpenTask={openComplianceTask}
+            />
+            <StaffComplianceTab staff={staff} staffId={staffId} />
+          </div>
         )}
 
         {activeTab === "Schedule" && (
@@ -287,7 +382,732 @@ export default function StaffDetailPage() {
           <StaffNotesTab staff={staff} staffId={staffId} />
         )}
       </section>
+
+      {taskModalItem && (
+        <StaffComplianceTaskModal
+          item={taskModalItem}
+          staff={staff}
+          saving={taskSaving}
+          message={taskMessage}
+          onClose={() => {
+            setTaskModalItem(null);
+            setTaskMessage("");
+          }}
+          onSave={saveComplianceTask}
+        />
+      )}
+
+      <StaffDetailComplianceStyles />
     </div>
+  );
+}
+
+
+function MissingCompliancePanel({ items, summary, loading, onRefresh, onOpenCompliance, onOpenTask }) {
+  const preview = items.slice(0, 5);
+
+  return (
+    <section className={`missing-compliance-panel ${summary.missing ? "has-missing" : "is-clean"}`}>
+      <div className="missing-compliance-left">
+        <div className="missing-compliance-icon">
+          {summary.missing ? <AlertTriangle size={22} /> : <ShieldCheck size={22} />}
+        </div>
+        <div>
+          <p className="dashboard-eyebrow">Source Compliance Check</p>
+          <h3>{summary.missing ? `${summary.missing} missing compliance item${summary.missing === 1 ? "" : "s"}` : "Staff file is compliance-ready"}</h3>
+          <p>
+            This panel mirrors the same checklist used by the main Compliance Center. Complete missing records in the correct Staff Detail tab and refresh the source check.
+          </p>
+        </div>
+      </div>
+
+      <div className="missing-compliance-right">
+        <div className="mini-compliance-score">
+          <strong>{summary.score}%</strong>
+          <span>{summary.compliant}/{summary.total || 0} complete</span>
+        </div>
+        <button type="button" onClick={onRefresh} disabled={loading}>
+          <RefreshCw size={15} />
+          {loading ? "Checking..." : "Refresh"}
+        </button>
+        <button type="button" className="dark" onClick={onOpenCompliance}>
+          Open Compliance
+        </button>
+      </div>
+
+      {preview.length > 0 && (
+        <div className="missing-preview-list">
+          {preview.map((item) => (
+            <button key={item.key || item.title} type="button" onClick={() => onOpenTask(item)}>
+              <AlertTriangle size={13} />
+              {item.title}
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function StaffMissingComplianceChecklist({ items, summary, loading, onRefresh, onOpenTask }) {
+  const sections = groupChecklistItems(items);
+
+  return (
+    <div className="premium-panel staff-compliance-source-panel">
+      <div className="staff-compliance-source-head">
+        <div>
+          <p className="dashboard-eyebrow">Compliance Checklist</p>
+          <h3>Missing & Completed Requirements</h3>
+          <p>
+            Compliance is calculated from staff credentials, training, continuing education, documents, and alerts.
+          </p>
+        </div>
+        <div className="staff-compliance-score-box">
+          <strong>{summary.score}%</strong>
+          <span>{summary.compliant}/{summary.total || 0} complete</span>
+        </div>
+      </div>
+
+      <div className="staff-compliance-actions-row">
+        <button type="button" onClick={onRefresh} disabled={loading}>
+          <RefreshCw size={15} />
+          {loading ? "Checking..." : "Refresh Source Check"}
+        </button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="staff-compliance-empty">
+          <ShieldCheck size={28} />
+          <strong>No checklist returned yet.</strong>
+          <p>Confirm /staff-compliance/checklist/{'{staffId}'} is available.</p>
+        </div>
+      ) : (
+        <div className="staff-compliance-sections">
+          {sections.map((section) => (
+            <div className="staff-compliance-section" key={section.title}>
+              <h4>{section.title}</h4>
+              <div className="staff-compliance-items">
+                {section.items.map((item) => {
+                  const ok = isCompliant(item.status);
+                  return (
+                    <button
+                      type="button"
+                      className={`staff-compliance-item ${ok ? "ok" : "missing"}`}
+                      key={item.key || item.title}
+                      onClick={() => onOpenTask(item)}
+                    >
+                      <span>{ok ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}</span>
+                      <div>
+                        <strong>{item.title}</strong>
+                        <p>{ok ? "View evidence / add note" : `Complete in ${getFixLocation(item)}`}</p>
+                      </div>
+                      <b>{ok ? "View" : "Complete Task"}</b>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+function StaffComplianceTaskModal({ item, staff, saving, message, onClose, onSave }) {
+  const compliant = isCompliant(item.status);
+  const [form, setForm] = useState({
+    completed_date: todayInputValue(),
+    expiration_date: item.expiration_date || item.due_date || "",
+    notes: item.notes || "",
+    evidence_filename: item.evidence_filename || item.document_name || "",
+  });
+
+  function update(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  return (
+    <div className="staff-task-modal-backdrop" onClick={onClose}>
+      <div className="staff-task-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="staff-task-modal-header">
+          <div>
+            <p className="dashboard-eyebrow">Staff Compliance Task</p>
+            <h2>{item.title}</h2>
+            <span>{staff.full_name} · {getFixLocation(item)}</span>
+          </div>
+          <button type="button" className="icon-close" onClick={onClose}>
+            <X size={19} />
+          </button>
+        </div>
+
+        <div className={`staff-task-status ${compliant ? "ok" : "missing"}`}>
+          {compliant ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+          <div>
+            <strong>{normalizeStatus(item.status)}</strong>
+            <p>
+              {compliant
+                ? "Evidence already exists. You may add notes or update expiration information if needed."
+                : "Upload evidence, enter completion details, and save to mark this requirement compliant."}
+            </p>
+          </div>
+        </div>
+
+        <div className="staff-task-form-grid">
+          <label>
+            <span>Completed Date</span>
+            <input
+              type="date"
+              value={form.completed_date}
+              onChange={(event) => update("completed_date", event.target.value)}
+            />
+          </label>
+
+          <label>
+            <span>Expiration Date <small>optional</small></span>
+            <input
+              type="date"
+              value={form.expiration_date}
+              onChange={(event) => update("expiration_date", event.target.value)}
+            />
+          </label>
+        </div>
+
+        <label className="staff-task-upload">
+          <Upload size={20} />
+          <div>
+            <strong>Evidence File</strong>
+            <p>{form.evidence_filename || "Attach PDF, image, certificate, signed form, or log."}</p>
+          </div>
+          <input
+            type="file"
+            onChange={(event) => update("evidence_filename", event.target.files?.[0]?.name || "")}
+          />
+        </label>
+
+        <label className="staff-task-notes">
+          <span>Notes</span>
+          <textarea
+            value={form.notes}
+            onChange={(event) => update("notes", event.target.value)}
+            placeholder="Add evidence notes, reviewer comment, or renewal instruction..."
+          />
+        </label>
+
+        {message && <div className="staff-task-message">{message}</div>}
+
+        <div className="staff-task-modal-actions">
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="primary" onClick={() => onSave(form)} disabled={saving}>
+            <Save size={16} />
+            {saving ? "Saving..." : compliant ? "Update Evidence" : "Save Evidence"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StaffDetailComplianceStyles() {
+  return (
+    <style>{`
+      .missing-compliance-panel {
+        margin: 18px 0;
+        border-radius: 28px;
+        padding: 18px;
+        border: 1px solid #e2e8f0;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 16px;
+      }
+
+      .missing-compliance-panel.has-missing {
+        border-color: #fecaca;
+        background: linear-gradient(135deg, #fff 0%, #fff7f7 100%);
+      }
+
+      .missing-compliance-panel.is-clean {
+        border-color: #bbf7d0;
+        background: linear-gradient(135deg, #fff 0%, #f0fdf4 100%);
+      }
+
+      .missing-compliance-left {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+      }
+
+      .missing-compliance-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 18px;
+        display: grid;
+        place-items: center;
+        background: #fef2f2;
+        color: #dc2626;
+        flex: 0 0 auto;
+      }
+
+      .missing-compliance-panel.is-clean .missing-compliance-icon {
+        background: #ecfdf5;
+        color: #059669;
+      }
+
+      .missing-compliance-left h3,
+      .missing-compliance-left p {
+        margin: 0;
+      }
+
+      .missing-compliance-left p:not(.dashboard-eyebrow) {
+        margin-top: 6px;
+        color: #64748b;
+        line-height: 1.55;
+      }
+
+      .missing-compliance-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .mini-compliance-score {
+        min-width: 100px;
+        border-radius: 18px;
+        padding: 11px 14px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        text-align: center;
+      }
+
+      .mini-compliance-score strong,
+      .mini-compliance-score span {
+        display: block;
+      }
+
+      .mini-compliance-score strong {
+        font-size: 1.35rem;
+      }
+
+      .mini-compliance-score span {
+        color: #64748b;
+        font-size: .78rem;
+        font-weight: 800;
+      }
+
+      .missing-compliance-right button,
+      .staff-compliance-actions-row button {
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #334155;
+        border-radius: 999px;
+        padding: 11px 14px;
+        font-weight: 900;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .missing-compliance-right button.dark {
+        background: #0f172a;
+        color: white;
+        border-color: #0f172a;
+      }
+
+      .missing-preview-list {
+        grid-column: 1 / -1;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .missing-preview-list button {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 8px 10px;
+        background: #fef2f2;
+        color: #991b1b;
+        font-weight: 850;
+        font-size: .78rem;
+        border: 0;
+        cursor: pointer;
+      }
+
+      .staff-compliance-reconciled-grid {
+        display: grid;
+        gap: 18px;
+      }
+
+      .staff-compliance-source-panel {
+        border-radius: 28px;
+      }
+
+      .staff-compliance-source-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 14px;
+      }
+
+      .staff-compliance-source-head h3,
+      .staff-compliance-source-head p {
+        margin: 0;
+      }
+
+      .staff-compliance-source-head p:not(.dashboard-eyebrow) {
+        margin-top: 6px;
+        color: #64748b;
+      }
+
+      .staff-compliance-score-box {
+        min-width: 120px;
+        border-radius: 22px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        text-align: center;
+        padding: 14px;
+        height: fit-content;
+      }
+
+      .staff-compliance-score-box strong,
+      .staff-compliance-score-box span {
+        display: block;
+      }
+
+      .staff-compliance-score-box strong {
+        font-size: 1.8rem;
+      }
+
+      .staff-compliance-score-box span {
+        font-size: .8rem;
+        font-weight: 850;
+      }
+
+      .staff-compliance-actions-row {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 14px;
+      }
+
+      .staff-compliance-empty {
+        min-height: 140px;
+        border-radius: 22px;
+        border: 1px dashed #cbd5e1;
+        background: #f8fafc;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        color: #64748b;
+        padding: 20px;
+      }
+
+      .staff-compliance-sections {
+        display: grid;
+        gap: 14px;
+      }
+
+      .staff-compliance-section {
+        border: 1px solid #e2e8f0;
+        border-radius: 22px;
+        padding: 14px;
+        background: #f8fafc;
+      }
+
+      .staff-compliance-section h4 {
+        margin: 0 0 10px;
+      }
+
+      .staff-compliance-items {
+        display: grid;
+        gap: 9px;
+      }
+
+      .staff-compliance-item {
+        width: 100%;
+        text-align: left;
+        cursor: pointer;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 10px;
+        align-items: center;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        padding: 11px;
+      }
+
+      .staff-compliance-item:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+      }
+
+      .staff-compliance-item > span {
+        width: 34px;
+        height: 34px;
+        border-radius: 13px;
+        display: grid;
+        place-items: center;
+      }
+
+      .staff-compliance-item.ok > span {
+        background: #ecfdf5;
+        color: #059669;
+      }
+
+      .staff-compliance-item.missing > span {
+        background: #fef2f2;
+        color: #dc2626;
+      }
+
+      .staff-compliance-item strong,
+      .staff-compliance-item p {
+        margin: 0;
+      }
+
+      .staff-compliance-item p {
+        margin-top: 3px;
+        font-size: .82rem;
+        color: #64748b;
+      }
+
+      .staff-compliance-item b {
+        border-radius: 999px;
+        padding: 6px 9px;
+        font-size: .72rem;
+        background: #f1f5f9;
+        color: #334155;
+      }
+
+      .staff-compliance-item.ok b {
+        background: #ecfdf5;
+        color: #047857;
+      }
+
+      .staff-compliance-item.missing b {
+        background: #fef2f2;
+        color: #b91c1c;
+      }
+
+
+      .staff-task-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: grid;
+        place-items: center;
+        padding: 18px;
+        background: rgba(15, 23, 42, 0.58);
+        backdrop-filter: blur(8px);
+      }
+
+      .staff-task-modal {
+        width: min(780px, 100%);
+        max-height: 92vh;
+        overflow: auto;
+        border-radius: 30px;
+        padding: 24px;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        border: 1px solid rgba(255, 255, 255, 0.85);
+        box-shadow: 0 30px 90px rgba(15, 23, 42, 0.35);
+      }
+
+      .staff-task-modal-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .staff-task-modal-header h2,
+      .staff-task-modal-header span,
+      .staff-task-status p,
+      .staff-task-status strong {
+        margin: 0;
+      }
+
+      .staff-task-modal-header h2 {
+        font-size: 1.6rem;
+        letter-spacing: -.04em;
+      }
+
+      .staff-task-modal-header span {
+        display: block;
+        margin-top: 5px;
+        color: #64748b;
+        font-weight: 850;
+      }
+
+      .icon-close {
+        border: 0;
+        width: 42px;
+        height: 42px;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #0f172a;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+      }
+
+      .staff-task-status {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        border-radius: 22px;
+        padding: 14px;
+        margin-bottom: 16px;
+      }
+
+      .staff-task-status.ok {
+        background: #ecfdf5;
+        color: #065f46;
+        border: 1px solid #bbf7d0;
+      }
+
+      .staff-task-status.missing {
+        background: #fef2f2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+      }
+
+      .staff-task-status p {
+        margin-top: 4px;
+        line-height: 1.45;
+      }
+
+      .staff-task-form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .staff-task-form-grid label,
+      .staff-task-notes {
+        display: grid;
+        gap: 7px;
+      }
+
+      .staff-task-form-grid span,
+      .staff-task-notes span {
+        font-weight: 950;
+        color: #334155;
+      }
+
+      .staff-task-form-grid small {
+        color: #94a3b8;
+        font-weight: 800;
+      }
+
+      .staff-task-form-grid input,
+      .staff-task-notes textarea {
+        border: 1px solid #cbd5e1;
+        border-radius: 16px;
+        padding: 12px 13px;
+        font: inherit;
+        font-weight: 800;
+        background: white;
+      }
+
+      .staff-task-upload {
+        position: relative;
+        margin: 10px 0 12px;
+        border: 1px dashed #93c5fd;
+        border-radius: 22px;
+        padding: 18px;
+        background: #eff6ff;
+        color: #1e40af;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        cursor: pointer;
+      }
+
+      .staff-task-upload p,
+      .staff-task-upload strong {
+        margin: 0;
+      }
+
+      .staff-task-upload p {
+        margin-top: 3px;
+        color: #475569;
+      }
+
+      .staff-task-upload input {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      .staff-task-notes textarea {
+        min-height: 118px;
+        resize: vertical;
+        font-weight: 700;
+      }
+
+      .staff-task-message {
+        margin-top: 12px;
+        border-radius: 16px;
+        padding: 11px 13px;
+        background: #fffbeb;
+        color: #92400e;
+        border: 1px solid #fde68a;
+        font-weight: 850;
+      }
+
+      .staff-task-modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .staff-task-modal-actions button {
+        border-radius: 999px;
+        padding: 12px 16px;
+        font-weight: 950;
+        cursor: pointer;
+        border: 1px solid #e2e8f0;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .staff-task-modal-actions .secondary {
+        background: white;
+        color: #334155;
+      }
+
+      .staff-task-modal-actions .primary {
+        background: linear-gradient(135deg, #1d4ed8, #0f766e);
+        color: white;
+        border-color: transparent;
+      }
+
+      .staff-task-modal-actions button:disabled {
+        opacity: .65;
+        cursor: not-allowed;
+      }
+
+      @media (max-width: 900px) {
+        .missing-compliance-panel,
+        .staff-compliance-source-head {
+          grid-template-columns: 1fr;
+          flex-direction: column;
+        }
+
+        .missing-compliance-right {
+          flex-wrap: wrap;
+        }
+      }
+    `}</style>
   );
 }
 
@@ -348,4 +1168,184 @@ function isExpired(value) {
   const date = new Date(value);
   today.setHours(0, 0, 0, 0);
   return date < today;
+}
+
+function getChecklist(result) {
+  if (result.status !== "fulfilled") return null;
+  return normalizeChecklist(result.value.data);
+}
+
+function normalizeChecklist(payload) {
+  if (!payload) return null;
+  if (payload.checklist) return normalizeChecklist(payload.checklist);
+  const items = payload.items || flattenSections(payload.sections || []);
+  return { ...payload, items };
+}
+
+function normalizeChecklistItems(checklist) {
+  if (!checklist) return [];
+  if (Array.isArray(checklist.items)) return checklist.items;
+  if (Array.isArray(checklist.sections)) return flattenSections(checklist.sections);
+  return [];
+}
+
+function flattenSections(sections) {
+  return sections.flatMap((section) =>
+    (section.items || []).map((item) => ({ ...item, section: section.title }))
+  );
+}
+
+function groupChecklistItems(items) {
+  const map = new Map();
+  items.forEach((item) => {
+    const title = item.section || item.category || item.area || getFixLocation(item);
+    if (!map.has(title)) map.set(title, []);
+    map.get(title).push(item);
+  });
+  return Array.from(map.entries()).map(([title, sectionItems]) => ({ title, items: sectionItems }));
+}
+
+function isCompliant(status) {
+  return ["COMPLIANT", "COMPLETE", "COMPLETED", "SIGNED", "VERIFIED", "FOUND", "ACTIVE"].includes(
+    String(status || "").toUpperCase()
+  );
+}
+
+function isMissing(status) {
+  return ["MISSING", "OVERDUE", "EXPIRED", "DEFICIENT", "NON_COMPLIANT"].includes(
+    String(status || "MISSING").toUpperCase()
+  );
+}
+
+function normalizeStatus(status) {
+  return String(status || "MISSING").replace(/_/g, " ").toUpperCase();
+}
+
+function getFixLocation(item = {}) {
+  const text = `${item.key || ""} ${item.title || ""}`.toLowerCase();
+  if (text.includes("cpr") || text.includes("first aid") || text.includes("fingerprint") || text.includes("license")) return "Credentials";
+  if (text.includes("training") || text.includes("fall") || text.includes("medication") || text.includes("cultural") || text.includes("emergency") || text.includes("diabetes")) return "Training";
+  if (text.includes("education") || text.includes("ce")) return "Continuing Education";
+  if (text.includes("document") || text.includes("application") || text.includes("reference") || text.includes("id") || text.includes("citizen")) return "Documents";
+  return "Staff Detail";
+}
+
+
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getStaffComplianceSaveEndpoint(item = {}) {
+  const text = `${item.key || ""} ${item.title || ""}`.toLowerCase();
+
+  if (text.includes("fingerprint")) return "/staff-compliance/fingerprint-clearance";
+  if (text.includes("tb")) return "/staff-compliance/tb-screenings";
+  if (text.includes("cpr") || text.includes("first aid") || text.includes("certification")) return "/staff-compliance/certifications";
+  if (text.includes("background") || text.includes("application") || text.includes("reference")) return "/staff-compliance/background-checks";
+  if (text.includes("driver") || text.includes("vehicle")) return "/staff-compliance/driver-records";
+  if (text.includes("continuing") || text.includes("ce ")) return "/staff-compliance/continuing-education";
+  if (
+    text.includes("competency") ||
+    text.includes("assessment") ||
+    text.includes("treatment plan") ||
+    text.includes("discharge") ||
+    text.includes("progress note") ||
+    text.includes("bhp") ||
+    text.includes("id") ||
+    text.includes("citizen")
+  ) return "/staff-compliance/competencies";
+
+  return "/staff-compliance/training-records";
+}
+
+function buildStaffCompliancePayload(item, staffId, form) {
+  const endpoint = getStaffComplianceSaveEndpoint(item);
+  const base = {
+    staff_id: staffId,
+    status: "COMPLETED",
+    completion_date: form.completed_date || todayInputValue(),
+    expiration_date: form.expiration_date || null,
+    notes: form.notes || "",
+    evidence_filename: form.evidence_filename || null,
+  };
+
+  if (endpoint.includes("certifications")) {
+    return {
+      ...base,
+      certification_name: item.title,
+      certification_type: item.key || item.title,
+      issue_date: form.completed_date || todayInputValue(),
+    };
+  }
+
+  if (endpoint.includes("background-checks")) {
+    return {
+      ...base,
+      check_type: item.key || item.title,
+      check_date: form.completed_date || todayInputValue(),
+      result: "PASS",
+    };
+  }
+
+  if (endpoint.includes("fingerprint-clearance")) {
+    return {
+      ...base,
+      clearance_date: form.completed_date || todayInputValue(),
+      expiration_date: form.expiration_date || null,
+      clearance_status: "CLEARED",
+    };
+  }
+
+  if (endpoint.includes("tb-screenings")) {
+    return {
+      ...base,
+      screening_date: form.completed_date || todayInputValue(),
+      result: "NEGATIVE",
+    };
+  }
+
+  if (endpoint.includes("driver-records")) {
+    return {
+      ...base,
+      license_expiration_date: form.expiration_date || null,
+      review_date: form.completed_date || todayInputValue(),
+      record_status: "ACTIVE",
+    };
+  }
+
+  if (endpoint.includes("continuing-education")) {
+    return {
+      ...base,
+      course_name: item.title,
+      provider: "Internal",
+      category: item.section || item.category || "Compliance",
+      hours_earned: 1,
+      completion_date: form.completed_date || todayInputValue(),
+    };
+  }
+
+  if (endpoint.includes("competencies")) {
+    return {
+      ...base,
+      competency_name: item.title,
+      competency_type: item.key || item.title,
+      review_date: form.completed_date || todayInputValue(),
+      result: "COMPETENT",
+    };
+  }
+
+  return {
+    ...base,
+    training_name: item.title,
+    training_category: item.section || item.category || "Compliance",
+    training_date: form.completed_date || todayInputValue(),
+  };
+}
+
+function getApiErrorMessage(err) {
+  const detail = err?.response?.data?.detail;
+  if (Array.isArray(detail)) return detail.map((d) => d.msg || JSON.stringify(d)).join("; ");
+  if (typeof detail === "string") return detail;
+  if (detail) return JSON.stringify(detail);
+  return err?.message || "";
 }
