@@ -575,23 +575,36 @@ function isCompliant(status) {
 
 function isCompliantItem(item) {
   if (!item) return false;
+
+  // IMPORTANT: the Compliance Page must reflect the same evidence displayed on Staff Detail.
+  // Some older checklist responses may still return status=MISSING_EVIDENCE or has_evidence=false
+  // even after Staff Detail has saved an evidence filename/url. Evidence presence wins.
+  const s = String(item.status || "").toUpperCase();
   const evidenceStatus = String(item.evidence_status || "").toUpperCase();
-  if (["MISSING_EVIDENCE", "NO_EVIDENCE"].includes(evidenceStatus)) return false;
-  if (item.has_evidence === false) return false;
-  return isCompliant(item.status) && hasEvidence(item);
+
+  if (["EXPIRED", "OVERDUE", "DEFICIENT", "NON_COMPLIANT"].includes(s)) return false;
+  if (["EXPIRED", "OVERDUE"].includes(evidenceStatus)) return false;
+
+  return hasEvidence(item);
 }
 
 function hasEvidence(item) {
   if (!item) return false;
+
+  // Do not trust stale has_evidence=false from the backend when actual file fields exist.
+  // Any filename, URL, document id, or certificate id means the evidence exists.
   return Boolean(
-    item.has_evidence === true ||
     item.evidence_url ||
     item.document_url ||
     item.file_url ||
     item.certificate_url ||
     item.evidence_filename ||
+    item.document_filename ||
+    item.file_name ||
+    item.certificate_filename ||
     item.document_id ||
-    item.certificate_document_id
+    item.certificate_document_id ||
+    item.has_evidence === true
   );
 }
 

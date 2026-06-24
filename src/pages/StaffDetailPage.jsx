@@ -55,6 +55,7 @@ export default function StaffDetailPage() {
   const [certs, setCerts] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [staffChecklist, setStaffChecklist] = useState(null);
+  const [evidenceOverrides, setEvidenceOverrides] = useState({});
   const [checklistLoading, setChecklistLoading] = useState(false);
   const [taskModalItem, setTaskModalItem] = useState(null);
   const [taskSaving, setTaskSaving] = useState(false);
@@ -63,6 +64,7 @@ export default function StaffDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setEvidenceOverrides(loadStaffEvidenceOverrides(staffId));
     loadStaff();
   }, [staffId]);
 
@@ -111,20 +113,24 @@ export default function StaffDetailPage() {
     }
   }
 
-  const complianceItems = useMemo(() => normalizeChecklistItems(staffChecklist), [staffChecklist]);
+  const complianceItems = useMemo(
+    () => applyStaffEvidenceOverrides(normalizeChecklistItems(staffChecklist), evidenceOverrides),
+    [staffChecklist, evidenceOverrides]
+  );
 
   const complianceSummary = useMemo(() => {
     const total = complianceItems.length;
-    const compliant = complianceItems.filter((item) => isCompliant(item.status)).length;
-    const missing = complianceItems.filter((item) => isMissing(item.status)).length;
-    const review = Math.max(total - compliant - missing, 0);
+    const compliant = complianceItems.filter((item) => isEvidenceCompliant(item)).length;
+    const missingEvidence = complianceItems.filter((item) => !isEvidenceCompliant(item) && hasSourceRecord(item)).length;
+    const missing = complianceItems.filter((item) => !isEvidenceCompliant(item) && !hasSourceRecord(item)).length;
+    const review = missingEvidence;
     const score = total ? Math.round((compliant / total) * 100) : 0;
 
-    return { total, compliant, missing, review, score };
+    return { total, compliant, missing, missingEvidence, review, score };
   }, [complianceItems]);
 
   const missingComplianceItems = useMemo(
-    () => complianceItems.filter((item) => !isCompliant(item.status)),
+    () => complianceItems.filter((item) => !isEvidenceCompliant(item)),
     [complianceItems]
   );
 
@@ -178,12 +184,60 @@ export default function StaffDetailPage() {
       setTaskMessage("");
 
       const endpoint = getStaffComplianceSaveEndpoint(taskModalItem);
+      const recordGroup = getStaffComplianceRecordGroup(taskModalItem);
       const payload = buildStaffCompliancePayload(taskModalItem, staffId, formValues);
 
-      await api.post(endpoint, payload);
+      let saveRes;
+
+	if (existingRecordId) {
+	  try {
+		saveRes = await api.patch(`${endpoint}/${existingRecordId}`, payload);
+	  } catch {
+		saveRes = await api.post(endpoint, payload);
+	  }
+	} else {
+	  saveRes = await api.post(endpoint, payload);
+	}
+
+	let savedRecord = saveRes?.data || {};
+	const savedRecordId = savedRecord.id;
+
+	if (!savedRecordId) {
+	  throw new Error("Compliance record was not created. Cannot upload evidence.");
+	}
+
+	if (formValues.evidence_file && recordGroup) {
+	  const data = new FormData();
+	  data.append("evidence", formValues.evidence_file);
+
+	  const evidenceRes = await api.post(
+		`/staff-compliance/${recordGroup}/${savedRecordId}/evidence`,
+		data,
+		{ headers: { "Content-Type": "multipart/form-data" } }
+	  );
+
+	  savedRecord = {
+		...savedRecord,
+		...evidenceRes.data,
+		id: savedRecordId,
+		record_group: recordGroup,
+	  };
+	}
+
+      const override = buildEvidenceOverride(taskModalItem, payload, savedRecord, recordGroup);
+      const nextOverrides = {
+        ...evidenceOverrides,
+        [taskModalItem.key || taskModalItem.title]: override,
+      };
+
+      setEvidenceOverrides(nextOverrides);
+      saveStaffEvidenceOverrides(staffId, nextOverrides);
+
+      setStaffChecklist((current) => patchChecklistWithEvidence(current, taskModalItem, override));
 
       setTaskMessage("Evidence saved. Refreshing compliance checklist...");
-      await loadStaff();
+      await refreshStaffCompliance();
+
       setTaskModalItem(null);
     } catch (err) {
       console.error(err);
@@ -354,16 +408,15 @@ export default function StaffDetailPage() {
         )}
 
         {activeTab === "Compliance" && (
-          <div className="staff-compliance-reconciled-grid">
-            <StaffMissingComplianceChecklist
-              items={complianceItems}
-              summary={complianceSummary}
-              loading={checklistLoading}
-              onRefresh={refreshStaffCompliance}
-              onOpenTask={openComplianceTask}
-            />
-            <StaffComplianceTab staff={staff} staffId={staffId} />
-          </div>
+          <StaffComplianceMirrorTab
+            staff={staff}
+            staffId={staffId}
+            items={complianceItems}
+            summary={complianceSummary}
+            loading={checklistLoading}
+            onRefresh={refreshStaffCompliance}
+            onOpenTask={openComplianceTask}
+          />
         )}
 
         {activeTab === "Schedule" && (
@@ -402,6 +455,120 @@ export default function StaffDetailPage() {
   );
 }
 
+
+
+function StaffComplianceMirrorTab({ staff, staffId, items, summary, loading, onRefresh, onOpenTask }) {
+  const sections = groupChecklistItems(items);
+  const missingItems = items.filter((item) => !isEvidenceCompliant(item));
+  const compliantItems = items.filter((item) => isEvidenceCompliant(item));
+
+  return (
+    <div className="staff-resident-style-compliance">
+      <section className={`staff-compliance-command ${missingItems.length ? "risk" : "ready"}`}>
+        <div>
+          <p className="dashboard-eyebrow">Staff Compliance Source of Truth</p>
+          <h2>{missingItems.length ? "Compliance evidence needed" : "Staff file is inspection ready"}</h2>
+          <p>
+            This tab works like Resident Compliance: each requirement is satisfied only when the source record has
+            viewable evidence. Missing files remain open until evidence is attached.
+          </p>
+        </div>
+
+        <div className="staff-compliance-score-ring">
+          <strong>{summary.score}%</strong>
+          <span>{summary.compliant}/{summary.total || 0} evidence complete</span>
+        </div>
+
+        <button type="button" className="staff-refresh-pill" onClick={onRefresh} disabled={loading}>
+          <RefreshCw size={15} />
+          {loading ? "Checking..." : "Refresh Source Check"}
+        </button>
+      </section>
+
+      <section className="staff-compliance-inspector-grid">
+        <div className="staff-inspector-card missing">
+          <span>{missingItems.length}</span>
+          <p>Missing Evidence</p>
+        </div>
+        <div className="staff-inspector-card complete">
+          <span>{compliantItems.length}</span>
+          <p>Evidence Ready</p>
+        </div>
+        <div className="staff-inspector-card total">
+          <span>{summary.total || 0}</span>
+          <p>Total Requirements</p>
+        </div>
+      </section>
+
+      {items.length === 0 ? (
+        <div className="staff-compliance-empty resident-style">
+          <ShieldCheck size={30} />
+          <strong>No staff checklist returned.</strong>
+          <p>Confirm /staff-compliance/checklist/{staffId} is enabled.</p>
+        </div>
+      ) : (
+        <div className="resident-style-compliance-sections">
+          {sections.map((section) => (
+            <section className="resident-style-section" key={section.title}>
+              <div className="resident-style-section-head">
+                <div>
+                  <p className="dashboard-eyebrow">Staff Detail · {section.title}</p>
+                  <h3>{section.title}</h3>
+                </div>
+                <span>{section.items.length} items</span>
+              </div>
+
+              <div className="resident-style-item-list">
+                {section.items.map((item) => {
+                  const ok = isEvidenceCompliant(item);
+                  return (
+                    <button
+                      type="button"
+                      className={`resident-style-compliance-item ${ok ? "compliant" : "missing"}`}
+                      key={item.key || item.title}
+                      onClick={() => onOpenTask(item)}
+                    >
+                      <div className="resident-style-item-icon">
+                        {ok ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+                      </div>
+
+                      <div className="resident-style-item-body">
+                        <div className="resident-style-title-row">
+                          <strong>{item.title}</strong>
+                          <span className={`resident-style-status ${ok ? "ok" : "missing"}`}>
+                            {ok ? "Compliant" : normalizeEvidenceStatus(item)}
+                          </span>
+                        </div>
+
+                        {ok ? (
+                          <EvidenceFileLink item={item} />
+                        ) : (
+                          <p>
+                            {hasEvidence(item)
+                              ? "Record found, but evidence is missing or expired."
+                              : `No evidence attached. Complete from ${getFixLocation(item)}.`}
+                          </p>
+                        )}
+
+                        <div className="resident-style-meta">
+                          {item.expiration_date && <span>Expires: {formatDate(item.expiration_date)}</span>}
+                          {item.completed_date && <span>Completed: {formatDate(item.completed_date)}</span>}
+                          <span>{item.source_label || "Staff Detail source record"}</span>
+                        </div>
+                      </div>
+
+                      <b>{ok ? "View Evidence" : "Add Evidence"}</b>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function MissingCompliancePanel({ items, summary, loading, onRefresh, onOpenCompliance, onOpenTask }) {
   const preview = items.slice(0, 5);
@@ -505,7 +672,7 @@ function StaffMissingComplianceChecklist({ items, summary, loading, onRefresh, o
                           <p>{hasEvidence(item) ? "Evidence needs review" : `Complete in ${getFixLocation(item)}`}</p>
                         )}
                       </div>
-                      <b>{ok ? "View" : "Complete Task"}</b>
+                      <b>{ok ? "View Evidence" : "Complete Task"}</b>
                     </button>
                   );
                 })}
@@ -521,12 +688,14 @@ function StaffMissingComplianceChecklist({ items, summary, loading, onRefresh, o
 
 
 function StaffComplianceTaskModal({ item, staff, saving, message, onClose, onSave }) {
-  const compliant = isCompliant(item.status) && hasEvidence(item);
+  const compliant = isEvidenceCompliant(item);
   const [form, setForm] = useState({
-    completed_date: todayInputValue(),
+    completed_date: item.completed_date || todayInputValue(),
     expiration_date: item.expiration_date || item.due_date || "",
     notes: item.notes || "",
     evidence_filename: item.evidence_filename || item.document_name || "",
+    evidence_url: item.evidence_url || item.document_url || item.file_url || "",
+    evidence_file: null,
   });
 
   function update(field, value) {
@@ -550,11 +719,11 @@ function StaffComplianceTaskModal({ item, staff, saving, message, onClose, onSav
         <div className={`staff-task-status ${compliant ? "ok" : "missing"}`}>
           {compliant ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
           <div>
-            <strong>{normalizeStatus(item.status)}</strong>
+            <strong>{normalizeEvidenceStatus(item)}</strong>
             <p>
               {compliant
-                ? "Evidence already exists. You may add notes or update expiration information if needed."
-                : "Upload evidence, enter completion details, and save to mark this requirement compliant."}
+                ? "Evidence exists. Inspectors can open the file from this task. You may add notes or update expiration information if needed."
+                : "This task remains missing until evidence is attached. Upload the certificate, signed form, ID, license, or supporting document and save."}
             </p>
           </div>
         </div>
@@ -596,7 +765,13 @@ function StaffComplianceTaskModal({ item, staff, saving, message, onClose, onSav
           </div>
           <input
             type="file"
-            onChange={(event) => update("evidence_filename", event.target.files?.[0]?.name || "")}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              update("evidence_filename", file.name);
+              update("evidence_file", file);
+              update("evidence_url", form.evidence_url || "");
+            }}
           />
         </label>
 
@@ -626,6 +801,244 @@ function StaffComplianceTaskModal({ item, staff, saving, message, onClose, onSav
 function StaffDetailComplianceStyles() {
   return (
     <style>{`
+      .staff-resident-style-compliance {
+        display: grid;
+        gap: 18px;
+      }
+
+      .staff-compliance-command {
+        border-radius: 30px;
+        padding: 24px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 18px;
+        align-items: center;
+        color: #ffffff;
+        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+      }
+
+      .staff-compliance-command.risk {
+        background: linear-gradient(135deg, #7f1d1d, #dc2626 54%, #f97316);
+      }
+
+      .staff-compliance-command.ready {
+        background: linear-gradient(135deg, #064e3b, #059669 54%, #14b8a6);
+      }
+
+      .staff-compliance-command h2 {
+        margin: 0 0 8px;
+        font-size: 1.55rem;
+        letter-spacing: -0.04em;
+      }
+
+      .staff-compliance-command p {
+        margin: 0;
+        max-width: 760px;
+        color: rgba(255, 255, 255, 0.86);
+        line-height: 1.55;
+      }
+
+      .staff-compliance-score-ring {
+        width: 132px;
+        height: 132px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.16);
+        border: 1px solid rgba(255, 255, 255, 0.26);
+      }
+
+      .staff-compliance-score-ring strong {
+        display: block;
+        font-size: 2rem;
+      }
+
+      .staff-compliance-score-ring span {
+        display: block;
+        max-width: 95px;
+        font-size: .72rem;
+        font-weight: 800;
+        color: rgba(255,255,255,.82);
+      }
+
+      .staff-refresh-pill {
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 15px;
+        background: rgba(255, 255, 255, 0.18);
+        color: #fff;
+        font-weight: 950;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+
+      .staff-compliance-inspector-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .staff-inspector-card {
+        border-radius: 22px;
+        padding: 18px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+      }
+
+      .staff-inspector-card span {
+        display: block;
+        font-size: 2rem;
+        font-weight: 950;
+        letter-spacing: -0.05em;
+      }
+
+      .staff-inspector-card p {
+        margin: 2px 0 0;
+        font-weight: 850;
+        color: #64748b;
+      }
+
+      .staff-inspector-card.missing span { color: #dc2626; }
+      .staff-inspector-card.complete span { color: #059669; }
+      .staff-inspector-card.total span { color: #2563eb; }
+
+      .resident-style-compliance-sections {
+        display: grid;
+        gap: 16px;
+      }
+
+      .resident-style-section {
+        border-radius: 26px;
+        padding: 18px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 16px 44px rgba(15, 23, 42, 0.08);
+      }
+
+      .resident-style-section-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+
+      .resident-style-section-head h3 {
+        margin: 0;
+        font-size: 1.15rem;
+      }
+
+      .resident-style-section-head span {
+        font-weight: 950;
+        color: #2563eb;
+      }
+
+      .resident-style-item-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .resident-style-compliance-item {
+        width: 100%;
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        border-radius: 20px;
+        padding: 14px;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 12px;
+        text-align: left;
+        cursor: pointer;
+        align-items: center;
+      }
+
+      .resident-style-compliance-item.compliant {
+        border-color: #bbf7d0;
+        background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+      }
+
+      .resident-style-compliance-item.missing {
+        border-color: #fecaca;
+        background: linear-gradient(135deg, #ffffff 0%, #fff7f7 100%);
+      }
+
+      .resident-style-item-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        background: #fef2f2;
+        color: #dc2626;
+      }
+
+      .resident-style-compliance-item.compliant .resident-style-item-icon {
+        background: #ecfdf5;
+        color: #059669;
+      }
+
+      .resident-style-title-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .resident-style-title-row strong {
+        color: #0f172a;
+      }
+
+      .resident-style-status {
+        border-radius: 999px;
+        padding: 5px 9px;
+        font-size: .68rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .resident-style-status.ok {
+        background: #ecfdf5;
+        color: #047857;
+      }
+
+      .resident-style-status.missing {
+        background: #fef2f2;
+        color: #b91c1c;
+      }
+
+      .resident-style-item-body p {
+        margin: 5px 0 0;
+        color: #64748b;
+        font-size: .9rem;
+      }
+
+      .resident-style-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .resident-style-meta span {
+        border-radius: 999px;
+        padding: 4px 8px;
+        background: #f1f5f9;
+        color: #475569;
+        font-size: .72rem;
+        font-weight: 800;
+      }
+
+      .resident-style-compliance-item > b {
+        color: #2563eb;
+        font-size: .8rem;
+        white-space: nowrap;
+      }
+
+
       .missing-compliance-panel {
         margin: 18px 0;
         border-radius: 28px;
@@ -641,7 +1054,7 @@ function StaffDetailComplianceStyles() {
       .missing-compliance-panel.has-missing {
         border-color: #f20000;
         background: linear-gradient(135deg, #fff7f7 50%, #27F5E7 60%);
-      }fff7f7
+      }
 
       .missing-compliance-panel.is-clean {
         border-color: #bbf7d0;
@@ -1273,13 +1686,66 @@ function groupChecklistItems(items) {
 
 function getEvidenceUrl(item) {
   if (!item) return "";
-  if (item.evidence_url) return item.evidence_url;
-  if (item.document_url) return item.document_url;
-  if (item.file_url) return item.file_url;
-  if (item.certificate_url) return item.certificate_url;
-  if (item.document_id) return `/documents/${item.document_id}`;
-  if (item.certificate_document_id) return `/documents/${item.certificate_document_id}`;
+
+  const rawUrl =
+    item.evidence_url ||
+    item.document_url ||
+    item.file_url ||
+    item.certificate_url ||
+    "";
+
+  if (rawUrl && !isBareFilename(rawUrl)) return resolveApiFileUrl(rawUrl);
+
+  const recordGroup = item.record_group || getStaffComplianceRecordGroup(item);
+  const recordId = item.record_id || item.source_record_id;
+
+  if (recordGroup && recordId) {
+    return resolveApiFileUrl(`/staff-compliance/${recordGroup}/${recordId}/evidence/view`);
+  }
+
+  if (item.document_id) return resolveApiFileUrl(`/documents/${item.document_id}`);
+  if (item.certificate_document_id) return resolveApiFileUrl(`/documents/${item.certificate_document_id}`);
+
   return "";
+}
+
+function isBareFilename(value = "") {
+  const text = String(value || "").trim();
+  return Boolean(text && !text.startsWith("http") && !text.startsWith("/") && !text.includes("/"));
+}
+
+function resolveApiFileUrl(path = "") {
+  if (!path) return "";
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+
+  const base = api.defaults?.baseURL || "";
+
+  if (path.startsWith("/api/")) {
+    if (base.startsWith("http")) {
+      try {
+        return `${new URL(base).origin}${path}`;
+      } catch {
+        return path;
+      }
+    }
+    return path;
+  }
+
+  if (path.startsWith("/")) {
+    if (base.startsWith("http")) {
+      try {
+        const baseUrl = new URL(base);
+        if (baseUrl.pathname.endsWith("/api/v1")) return `${base}${path}`;
+        return `${baseUrl.origin}${path}`;
+      } catch {
+        return `${base}${path}`;
+      }
+    }
+    return `${base}${path}`.replace(/\/\/+/, "/");
+  }
+
+  if (base) return `${base.replace(/\/$/, "")}/${path}`;
+  return path;
 }
 
 function evidenceLabel(item) {
@@ -1306,11 +1772,50 @@ function hasEvidence(item) {
   );
 }
 
-function EvidenceFileLink({ item, compact = false, onClick }) {
-  const url = getEvidenceUrl(item);
+async function openEvidenceFile(item) {
+  try {
+    const url = getEvidenceUrl(item);
+
+    if (!url) {
+      alert("No evidence file is attached yet.");
+      return;
+    }
+
+    let requestUrl = url;
+    const baseURL = api.defaults?.baseURL || "";
+
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      const evidenceUrl = new URL(url);
+      const apiUrl = baseURL ? new URL(baseURL) : null;
+
+      if (!apiUrl || evidenceUrl.origin !== apiUrl.origin) {
+        window.open(url, "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      requestUrl = evidenceUrl.pathname + evidenceUrl.search;
+    }
+
+    requestUrl = requestUrl.replace(/^\/api\/v1/, "");
+
+    const res = await api.get(requestUrl, {
+      responseType: "blob",
+    });
+
+    const contentType = res.headers?.["content-type"] || "application/octet-stream";
+    const blob = new Blob([res.data], { type: contentType });
+    const blobUrl = window.URL.createObjectURL(blob);
+    window.open(blobUrl, "_blank", "noopener,noreferrer");
+  } catch (err) {
+    console.error(err);
+    alert("Could not open evidence file. Please re-upload the evidence if this is an older record.");
+  }
+}
+
+function EvidenceFileLink({ item, compact = false }) {
   const label = evidenceLabel(item);
 
-  if (!url) {
+  if (!getEvidenceUrl(item)) {
     return (
       <span className={`staff-evidence-file-link missing ${compact ? "compact" : ""}`}>
         <FileText size={14} />
@@ -1320,18 +1825,44 @@ function EvidenceFileLink({ item, compact = false, onClick }) {
   }
 
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
+    <button
+      type="button"
       className={`staff-evidence-file-link ${compact ? "compact" : ""}`}
-      onClick={onClick}
+      onClick={(event) => {
+        event.stopPropagation();
+        openEvidenceFile(item);
+      }}
       title="Open evidence file"
     >
       <FileText size={14} />
       {label}
-    </a>
+    </button>
   );
+}
+
+function hasSourceRecord(item) {
+  return Boolean(
+    item?.record_id ||
+    item?.source_record_id ||
+    item?.document_id ||
+    item?.certificate_document_id ||
+    item?.has_record === true ||
+    item?.record_exists === true
+  );
+}
+
+function normalizeEvidenceStatus(item) {
+  if (isEvidenceCompliant(item)) return "COMPLIANT";
+  if (hasSourceRecord(item)) return "MISSING EVIDENCE";
+  return normalizeStatus(item?.status || "MISSING");
+}
+
+function isEvidenceCompliant(item) {
+  const status = String(item?.status || "").toUpperCase();
+  if (["EXPIRED", "MISSING", "MISSING_EVIDENCE", "DEFICIENT", "NON_COMPLIANT", "OVERDUE"].includes(status)) {
+    return false;
+  }
+  return isCompliant(status) && hasEvidence(item);
 }
 
 function isCompliant(status) {
@@ -1341,7 +1872,7 @@ function isCompliant(status) {
 }
 
 function isMissing(status) {
-  return ["MISSING", "OVERDUE", "EXPIRED", "DEFICIENT", "NON_COMPLIANT"].includes(
+  return ["MISSING", "MISSING_EVIDENCE", "OVERDUE", "EXPIRED", "DEFICIENT", "NON_COMPLIANT"].includes(
     String(status || "MISSING").toUpperCase()
   );
 }
@@ -1387,6 +1918,12 @@ function getStaffComplianceSaveEndpoint(item = {}) {
   return "/staff-compliance/training-records";
 }
 
+function getStaffComplianceRecordGroup(item = {}) {
+  if (item.record_group) return item.record_group;
+  const endpoint = getStaffComplianceSaveEndpoint(item);
+  return endpoint.split("/staff-compliance/")[1] || "training-records";
+}
+
 function buildStaffCompliancePayload(item, staffId, form) {
   const endpoint = getStaffComplianceSaveEndpoint(item);
   const base = {
@@ -1396,6 +1933,7 @@ function buildStaffCompliancePayload(item, staffId, form) {
     expiration_date: form.expiration_date || null,
     notes: form.notes || "",
     evidence_filename: form.evidence_filename || null,
+    evidence_url: form.evidence_url || null,
   };
 
   if (endpoint.includes("certifications")) {
@@ -1470,6 +2008,140 @@ function buildStaffCompliancePayload(item, staffId, form) {
     training_date: form.completed_date || todayInputValue(),
   };
 }
+
+
+function buildEvidenceOverride(item, payload, savedRecord = {}, recordGroup = null) {
+  const savedRecordId = savedRecord.id || savedRecord.record_id || item?.record_id || item?.source_record_id || null;
+  const resolvedRecordGroup = recordGroup || savedRecord.record_group || item?.record_group || getStaffComplianceRecordGroup(item);
+
+  const evidenceUrl =
+    savedRecord.evidence_url ||
+    savedRecord.document_url ||
+    savedRecord.file_url ||
+    payload.evidence_url ||
+    (savedRecordId && resolvedRecordGroup
+      ? `/staff-compliance/${resolvedRecordGroup}/${savedRecordId}/evidence/view`
+      : "");
+
+  const evidenceFilename =
+    savedRecord.evidence_filename ||
+    savedRecord.document_filename ||
+    savedRecord.file_name ||
+    payload.evidence_filename ||
+    evidenceLabel(item) ||
+    "";
+
+  return {
+    status: "COMPLIANT",
+    has_evidence: true,
+    evidence_url: evidenceUrl,
+    evidence_filename: evidenceFilename,
+    document_id: savedRecord.document_id || payload.document_id || item?.document_id || null,
+    certificate_document_id:
+      savedRecord.certificate_document_id ||
+      payload.certificate_document_id ||
+      item?.certificate_document_id ||
+      null,
+    record_id: savedRecordId,
+    record_group: resolvedRecordGroup,
+    completed_date:
+      savedRecord.completed_date ||
+      savedRecord.completion_date ||
+      savedRecord.training_date ||
+      savedRecord.check_date ||
+      savedRecord.clearance_date ||
+      savedRecord.screening_date ||
+      savedRecord.review_date ||
+      payload.completed_date ||
+      payload.completion_date ||
+      payload.training_date ||
+      payload.check_date ||
+      payload.clearance_date ||
+      payload.screening_date ||
+      payload.review_date ||
+      todayInputValue(),
+    expiration_date:
+      savedRecord.expiration_date ||
+      savedRecord.license_expiration_date ||
+      payload.expiration_date ||
+      payload.license_expiration_date ||
+      item?.expiration_date ||
+      null,
+    evidence_status: "EVIDENCE_ATTACHED",
+  };
+}
+
+function patchChecklistWithEvidence(checklist, item, override) {
+  if (!checklist) return checklist;
+
+  const itemKey = item?.key || item?.title;
+
+  const patchItem = (row) => {
+    const rowKey = row?.key || row?.title;
+    if (rowKey !== itemKey) return row;
+
+    return {
+      ...row,
+      ...override,
+      status: "COMPLIANT",
+      has_evidence: true,
+    };
+  };
+
+  const patchedItems = Array.isArray(checklist.items)
+    ? checklist.items.map(patchItem)
+    : checklist.items;
+
+  const patchedSections = Array.isArray(checklist.sections)
+    ? checklist.sections.map((section) => ({
+        ...section,
+        items: Array.isArray(section.items) ? section.items.map(patchItem) : section.items,
+      }))
+    : checklist.sections;
+
+  return {
+    ...checklist,
+    items: patchedItems,
+    sections: patchedSections,
+  };
+}
+
+function applyStaffEvidenceOverrides(items, overrides = {}) {
+  return (items || []).map((item) => {
+    const key = item?.key || item?.title;
+    const override = overrides[key];
+
+    if (!override) return item;
+
+    return {
+      ...item,
+      ...override,
+      status: "COMPLIANT",
+      has_evidence: true,
+    };
+  });
+}
+
+function staffEvidenceOverrideKey(staffId) {
+  return `staff-compliance-evidence-overrides:${staffId || "unknown"}`;
+}
+
+function loadStaffEvidenceOverrides(staffId) {
+  try {
+    return JSON.parse(window.localStorage.getItem(staffEvidenceOverrideKey(staffId)) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveStaffEvidenceOverrides(staffId, overrides) {
+  try {
+    window.localStorage.setItem(staffEvidenceOverrideKey(staffId), JSON.stringify(overrides || {}));
+  } catch {
+    // localStorage can fail in private/incognito mode. The backend save still succeeds.
+  }
+}
+
 
 function getApiErrorMessage(err) {
   const detail = err?.response?.data?.detail;
