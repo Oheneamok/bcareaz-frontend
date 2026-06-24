@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   Eye,
   FileText,
+  Download,
   MessageSquare,
   RefreshCw,
   ShieldAlert,
@@ -250,8 +251,7 @@ export default function CompliancePage() {
           <p className="eyebrow">Source-of-Truth Compliance</p>
           <h1>Compliance Center</h1>
           <p>
-            This page mirrors resident, staff, and facility detail records. Uploaded documents and signed disclosures
-            mark items compliant. Missing source records create compliance alerts.
+            This page mirrors resident, staff, and facility detail records. Evidence documents, certificates, and signed disclosures mark items compliant. Items without evidence stay missing for inspection readiness.
           </p>
         </div>
         <div className={`hero-score ${overallStatus.toLowerCase().replace(/\s+/g, "-")}`} style={{ "--score": overallScore }}>
@@ -264,8 +264,8 @@ export default function CompliancePage() {
 
       <section className="kpi-grid">
         <KpiCard title="Compliant" value={stats.compliant} icon={CheckCircle2} tone="success" />
-        <KpiCard title="Missing" value={stats.missing} icon={ShieldAlert} tone="danger" />
-        <KpiCard title="Needs Review" value={stats.review} icon={AlertTriangle} tone="warning" />
+        <KpiCard title="Missing Source" value={stats.missing} icon={ShieldAlert} tone="danger" />
+        <KpiCard title="Needs Evidence" value={stats.missingEvidence} icon={AlertTriangle} tone="warning" />
         <KpiCard title="Required Items" value={stats.total} icon={ClipboardCheck} tone="neutral" />
       </section>
 
@@ -349,26 +349,42 @@ export default function CompliancePage() {
               <button type="button" onClick={() => setSelectedItem(null)}>×</button>
             </div>
 
-            <div className="source-summary">
-              <StatusChip status={selectedItem.status} />
-              <p><b>Source:</b> {selectedItem.source || "Source record"}</p>
-              <p><b>Evidence:</b> {selectedItem.document_id || selectedItem.evidence_url ? "Available" : "Missing"}</p>
+            <div className="source-summary evidence-summary">
+              <StatusChip item={selectedItem} status={selectedItem.status} />
+              <p><b>Source:</b> {selectedItem.source_label || selectedItem.source || "Source record"}</p>
+              <div className="modal-evidence-line">
+                <b>Evidence:</b>
+                {hasEvidence(selectedItem) ? (
+                  <EvidenceFileLink item={selectedItem} />
+                ) : (
+                  <span>Missing evidence document</span>
+                )}
+              </div>
+              {selectedItem.expiration_date && <p><b>Expires:</b> {formatDate(selectedItem.expiration_date)}</p>}
             </div>
 
-            {isCompliant(selectedItem.status) ? (
+            {isCompliantItem(selectedItem) ? (
               <div className="readonly-box">
                 <ShieldCheck size={24} />
                 <div>
-                  <h3>Evidence exists on the detail page</h3>
-                  <p>This item is compliant. Compliance can view the file and add comments only. Uploads and edits remain on the source detail page.</p>
+                  <h3>Evidence ready for inspection</h3>
+                  <p>This item has an evidence document. Compliance can view the certificate/file and add comments only. Uploads and edits remain on the source detail page.</p>
+                </div>
+              </div>
+            ) : hasSourceRecord(selectedItem) ? (
+              <div className="evidence-required-box">
+                <AlertTriangle size={24} />
+                <div>
+                  <h3>Record exists, but evidence is missing</h3>
+                  <p>The staff/resident/facility record exists, but inspection evidence is not attached. Add the certificate, signed form, or supporting file on the source detail page.</p>
                 </div>
               </div>
             ) : (
               <div className="missing-box">
                 <ShieldAlert size={24} />
                 <div>
-                  <h3>Source evidence missing</h3>
-                  <p>Upload/sign this item from the resident, staff, or facility detail page. Once present, it will automatically show compliant here.</p>
+                  <h3>Source record and evidence missing</h3>
+                  <p>Create/upload this item from the resident, staff, or facility detail page. Once evidence exists, it will automatically show compliant here.</p>
                 </div>
               </div>
             )}
@@ -380,13 +396,18 @@ export default function CompliancePage() {
             />
 
             <div className="modal-actions">
-              {(selectedItem.document_url || selectedItem.evidence_url) && (
-                <a className="secondary-button" href={selectedItem.document_url || selectedItem.evidence_url} target="_blank" rel="noreferrer">
-                  <Eye size={16} /> View Document
-                </a>
+              {getEvidenceUrl(selectedItem) && (
+                <>
+                  <a className="secondary-button" href={getEvidenceUrl(selectedItem)} target="_blank" rel="noreferrer">
+                    <Eye size={16} /> View Evidence
+                  </a>
+                  <a className="secondary-button" href={getEvidenceUrl(selectedItem)} download>
+                    <Download size={16} /> Download
+                  </a>
+                </>
               )}
               <a className="secondary-button" href={getDetailUrl(activeTab, selectedResidentId, selectedStaffId, selectedItem)}>
-                <FileText size={16} /> Open Source Page
+                <FileText size={16} /> {hasEvidence(selectedItem) ? "Open Source Page" : "Add Evidence on Source Page"}
               </a>
               <button className="primary-button" type="button" onClick={saveComment}>
                 <MessageSquare size={16} /> Save Comment
@@ -419,17 +440,21 @@ function ChecklistView({ checklist, activeTab, detailPath, onSelect }) {
 
           <div className="item-list">
             {(section.items || []).map((item) => (
-              <button key={item.key || item.title} className={`source-item ${statusClass(item.status)}`} type="button" onClick={() => onSelect({ ...item, entity_id: entityId })}>
+              <button key={item.key || item.title} className={`source-item ${itemStatusClass(item)}`} type="button" onClick={() => onSelect({ ...item, entity_id: entityId })}>
                 <div className="source-left">
-                  {isCompliant(item.status) ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+                  {isCompliantItem(item) ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
                   <div>
                     <strong>{item.title}</strong>
-                    <p>{item.source_label || item.source || (isCompliant(item.status) ? "Found on source page" : "Missing from source page")}</p>
+                    <p>{item.source_label || item.source || (isCompliantItem(item) ? "Evidence found on source page" : "Evidence missing from source page")}</p>
+                    {!isCompliantItem(item) && hasSourceRecord(item) && <small className="evidence-note">Record found · evidence document required</small>}
+                    {isCompliantItem(item) && (
+                      <EvidenceFileLink item={item} compact onClick={(event) => event.stopPropagation()} />
+                    )}
                   </div>
                 </div>
                 <div className="source-actions">
-                  <StatusChip status={item.status} />
-                  {isCompliant(item.status) ? <Eye size={16} /> : <span className="missing-link">Fix on detail page</span>}
+                  <StatusChip item={item} status={item.status} />
+                  {isCompliantItem(item) ? <Eye size={16} /> : <span className="missing-link">{hasSourceRecord(item) ? "Add evidence" : "Fix on detail page"}</span>}
                 </div>
               </button>
             ))}
@@ -452,8 +477,37 @@ function KpiCard({ title, value, icon: Icon, tone }) {
   );
 }
 
-function StatusChip({ status }) {
-  return <span className={`status-chip ${statusClass(status)}`}>{normalizeStatus(status)}</span>;
+function StatusChip({ status, item }) {
+  const normalized = item ? normalizeItemStatus(item) : normalizeStatus(status);
+  return <span className={`status-chip ${item ? itemStatusClass(item) : statusClass(status)}`}>{normalized}</span>;
+}
+
+function EvidenceFileLink({ item, compact = false, onClick }) {
+  const url = getEvidenceUrl(item);
+  const label = evidenceLabel(item);
+
+  if (!url) {
+    return (
+      <span className={`compliance-file-link missing ${compact ? "compact" : ""}`}>
+        <FileText size={14} />
+        {label || "Evidence missing"}
+      </span>
+    );
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`compliance-file-link ${compact ? "compact" : ""}`}
+      onClick={onClick}
+      title="Open evidence file"
+    >
+      <FileText size={14} />
+      {label}
+    </a>
+  );
 }
 
 async function fetchFirstAvailable(paths) {
@@ -507,15 +561,56 @@ function groupItems(items) {
 function getChecklistStats(checklist) {
   const items = checklist?.items || flattenSections(checklist?.sections || []);
   const total = items.length;
-  const compliant = items.filter((item) => isCompliant(item.status)).length;
-  const missing = items.filter((item) => statusClass(item.status) === "missing").length;
-  const review = Math.max(total - compliant - missing, 0);
+  const compliant = items.filter((item) => isCompliantItem(item)).length;
+  const missingEvidence = items.filter((item) => !isCompliantItem(item) && hasSourceRecord(item)).length;
+  const missing = items.filter((item) => !isCompliantItem(item) && !hasSourceRecord(item)).length;
+  const review = Math.max(total - compliant - missing - missingEvidence, 0);
   const score = total ? Math.round((compliant / total) * 100) : 0;
-  return { total, compliant, missing, review, score };
+  return { total, compliant, missing, missingEvidence, review, score };
 }
 
 function isCompliant(status) {
   return ["COMPLIANT", "COMPLETE", "COMPLETED", "SIGNED", "VERIFIED", "FOUND", "ACTIVE"].includes(String(status || "").toUpperCase());
+}
+
+function isCompliantItem(item) {
+  if (!item) return false;
+  const evidenceStatus = String(item.evidence_status || "").toUpperCase();
+  if (["MISSING_EVIDENCE", "NO_EVIDENCE"].includes(evidenceStatus)) return false;
+  if (item.has_evidence === false) return false;
+  return isCompliant(item.status) && hasEvidence(item);
+}
+
+function hasEvidence(item) {
+  if (!item) return false;
+  return Boolean(
+    item.has_evidence === true ||
+    item.evidence_url ||
+    item.document_url ||
+    item.file_url ||
+    item.certificate_url ||
+    item.evidence_filename ||
+    item.document_id ||
+    item.certificate_document_id
+  );
+}
+
+function hasSourceRecord(item) {
+  if (!item) return false;
+  return Boolean(
+    item.record_id ||
+    item.source_record_id ||
+    item.document_id ||
+    item.certificate_document_id ||
+    item.has_record === true ||
+    item.record_exists === true
+  );
+}
+
+function itemStatusClass(item) {
+  if (isCompliantItem(item)) return "compliant";
+  if (hasSourceRecord(item)) return "review";
+  return "missing";
 }
 
 function statusClass(status) {
@@ -525,9 +620,41 @@ function statusClass(status) {
   return "review";
 }
 
+function normalizeItemStatus(item) {
+  if (isCompliantItem(item)) return "COMPLIANT";
+  if (hasSourceRecord(item)) return "NEEDS EVIDENCE";
+  return normalizeStatus(item?.status || "MISSING");
+}
+
 function normalizeStatus(status) {
   const s = String(status || "MISSING").replace(/_/g, " ").toUpperCase();
   return s;
+}
+
+function getEvidenceUrl(item) {
+  if (!item) return "";
+  if (item.evidence_url) return item.evidence_url;
+  if (item.document_url) return item.document_url;
+  if (item.file_url) return item.file_url;
+  if (item.certificate_url) return item.certificate_url;
+  if (item.document_id) return `/documents/${item.document_id}`;
+  if (item.certificate_document_id) return `/documents/${item.certificate_document_id}`;
+  return "";
+}
+
+function evidenceLabel(item) {
+  return (
+    item?.evidence_filename ||
+    item?.document_filename ||
+    item?.file_name ||
+    item?.certificate_filename ||
+    (item?.document_id ? `Document ${item.document_id}` : "Evidence available")
+  );
+}
+
+function formatDate(value) {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
 function getStatus(score, missing) {
@@ -911,6 +1038,7 @@ function ComplianceStyles() {
       .source-left p { margin: 4px 0 0; color: #64748b; font-size: .86rem; line-height: 1.35; }
       .source-item.compliant .source-left svg { color: #16a34a; background: #ecfdf5; }
       .source-item.missing .source-left svg { color: #dc2626; background: #fef2f2; }
+      .source-item.review .source-left svg { color: #d97706; background: #fffbeb; }
       .source-actions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 
       .status-chip {
@@ -987,7 +1115,8 @@ function ComplianceStyles() {
       .source-summary p { margin: 0; }
 
       .readonly-box,
-      .missing-box {
+      .missing-box,
+      .evidence-required-box {
         display: flex;
         gap: 13px;
         border-radius: 20px;
@@ -997,12 +1126,19 @@ function ComplianceStyles() {
       }
       .readonly-box { background: #ecfdf5; color: #065f46; border-color: #bbf7d0; }
       .missing-box { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+      .evidence-required-box { background: #fffbeb; color: #92400e; border-color: #fde68a; }
       .readonly-box h3,
       .missing-box h3,
+      .evidence-required-box h3,
       .readonly-box p,
-      .missing-box p { margin: 0; }
+      .missing-box p,
+      .evidence-required-box p { margin: 0; }
       .readonly-box p,
-      .missing-box p { margin-top: 4px; line-height: 1.5; }
+      .missing-box p,
+      .evidence-required-box p { margin-top: 4px; line-height: 1.5; }
+      .evidence-note { display:block; margin-top:4px; color:#b45309; font-weight:850; font-size:.78rem; }
+      .evidence-note.success { color:#047857; }
+      .evidence-summary { border-left: 5px solid #2563eb; }
 
       .audit-modal textarea {
         width: 100%;

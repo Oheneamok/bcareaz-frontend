@@ -4972,7 +4972,7 @@ nav {
 .staff-tab-shell button.active {
   background: linear-gradient(135deg, #1d4ed8, #2563eb);
   color: white;
-  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.26);
+  box-shadow: 2 14px 28px rgba(37, 99, 235, 0.26);
 }
 
 .staff-tab-panel {
@@ -5047,7 +5047,7 @@ nav {
   overflow: hidden;
   border-radius: 26px;
   padding: 22px;
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border: 3px solid rgba(226, 232, 240, 0.95);
   box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
 }
 

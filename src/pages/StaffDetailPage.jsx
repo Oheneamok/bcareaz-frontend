@@ -488,7 +488,7 @@ function StaffMissingComplianceChecklist({ items, summary, loading, onRefresh, o
               <h4>{section.title}</h4>
               <div className="staff-compliance-items">
                 {section.items.map((item) => {
-                  const ok = isCompliant(item.status);
+                  const ok = isCompliant(item.status) && hasEvidence(item);
                   return (
                     <button
                       type="button"
@@ -499,7 +499,11 @@ function StaffMissingComplianceChecklist({ items, summary, loading, onRefresh, o
                       <span>{ok ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}</span>
                       <div>
                         <strong>{item.title}</strong>
-                        <p>{ok ? "View evidence / add note" : `Complete in ${getFixLocation(item)}`}</p>
+                        {ok ? (
+                          <EvidenceFileLink item={item} compact onClick={(event) => event.stopPropagation()} />
+                        ) : (
+                          <p>{hasEvidence(item) ? "Evidence needs review" : `Complete in ${getFixLocation(item)}`}</p>
+                        )}
                       </div>
                       <b>{ok ? "View" : "Complete Task"}</b>
                     </button>
@@ -517,7 +521,7 @@ function StaffMissingComplianceChecklist({ items, summary, loading, onRefresh, o
 
 
 function StaffComplianceTaskModal({ item, staff, saving, message, onClose, onSave }) {
-  const compliant = isCompliant(item.status);
+  const compliant = isCompliant(item.status) && hasEvidence(item);
   const [form, setForm] = useState({
     completed_date: todayInputValue(),
     expiration_date: item.expiration_date || item.due_date || "",
@@ -553,6 +557,15 @@ function StaffComplianceTaskModal({ item, staff, saving, message, onClose, onSav
                 : "Upload evidence, enter completion details, and save to mark this requirement compliant."}
             </p>
           </div>
+        </div>
+
+        <div className="staff-task-evidence-panel">
+          <strong>Evidence Document</strong>
+          {hasEvidence(item) ? (
+            <EvidenceFileLink item={item} />
+          ) : (
+            <span className="staff-no-evidence">No evidence file attached yet.</span>
+          )}
         </div>
 
         <div className="staff-task-form-grid">
@@ -617,18 +630,18 @@ function StaffDetailComplianceStyles() {
         margin: 18px 0;
         border-radius: 28px;
         padding: 18px;
-        border: 1px solid #e2e8f0;
+        border: 3px solid #27F52E;
         background: rgba(255, 255, 255, 0.92);
-        box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+        box-shadow: 0 18px 50px rgba(15, 23, 42, 0.48);
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         gap: 16px;
       }
 
       .missing-compliance-panel.has-missing {
-        border-color: #fecaca;
-        background: linear-gradient(135deg, #fff 0%, #fff7f7 100%);
-      }
+        border-color: #f20000;
+        background: linear-gradient(135deg, #fff7f7 50%, #27F5E7 60%);
+      }fff7f7
 
       .missing-compliance-panel.is-clean {
         border-color: #bbf7d0;
@@ -644,11 +657,11 @@ function StaffDetailComplianceStyles() {
       .missing-compliance-icon {
         width: 46px;
         height: 46px;
-        border-radius: 18px;
+        border-radius: 10px;
         display: grid;
         place-items: center;
-        background: #fef2f2;
-        color: #dc2626;
+        background: #f20000;
+        color: #ffffff;
         flex: 0 0 auto;
       }
 
@@ -837,7 +850,7 @@ function StaffDetailComplianceStyles() {
         gap: 10px;
         align-items: center;
         background: white;
-        border: 1px solid #e2e8f0;
+        border: 3px solid #e2e8f0;
         border-radius: 18px;
         padding: 11px;
       }
@@ -1039,7 +1052,60 @@ function StaffDetailComplianceStyles() {
         color: #475569;
       }
 
-      .staff-task-upload input {
+      
+      .staff-evidence-file-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #2563eb;
+        font-weight: 950;
+        text-decoration: none;
+        padding: 7px 10px;
+        border-radius: 12px;
+        background: rgba(37, 99, 235, 0.08);
+        border: 1px solid rgba(37, 99, 235, 0.14);
+        width: max-content;
+        max-width: 100%;
+        transition: 0.18s ease;
+      }
+
+      .staff-evidence-file-link:hover {
+        background: rgba(37, 99, 235, 0.14);
+        transform: translateY(-1px);
+      }
+
+      .staff-evidence-file-link.compact {
+        margin-top: 6px;
+        font-size: 0.78rem;
+        padding: 5px 8px;
+      }
+
+      .staff-evidence-file-link.missing {
+        color: #b91c1c;
+        background: #fef2f2;
+        border-color: #fecaca;
+      }
+
+      .staff-task-evidence-panel {
+        margin: 14px 0;
+        padding: 14px;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        background: #f8fafc;
+        display: grid;
+        gap: 8px;
+      }
+
+      .staff-task-evidence-panel > strong {
+        color: #0f172a;
+      }
+
+      .staff-no-evidence {
+        color: #b91c1c;
+        font-weight: 850;
+      }
+
+.staff-task-upload input {
         position: absolute;
         inset: 0;
         opacity: 0;
@@ -1203,6 +1269,69 @@ function groupChecklistItems(items) {
     map.get(title).push(item);
   });
   return Array.from(map.entries()).map(([title, sectionItems]) => ({ title, items: sectionItems }));
+}
+
+function getEvidenceUrl(item) {
+  if (!item) return "";
+  if (item.evidence_url) return item.evidence_url;
+  if (item.document_url) return item.document_url;
+  if (item.file_url) return item.file_url;
+  if (item.certificate_url) return item.certificate_url;
+  if (item.document_id) return `/documents/${item.document_id}`;
+  if (item.certificate_document_id) return `/documents/${item.certificate_document_id}`;
+  return "";
+}
+
+function evidenceLabel(item) {
+  return (
+    item?.evidence_filename ||
+    item?.document_filename ||
+    item?.document_name ||
+    item?.file_name ||
+    item?.certificate_filename ||
+    (item?.document_id ? `Document ${item.document_id}` : "Evidence file")
+  );
+}
+
+function hasEvidence(item) {
+  return Boolean(
+    item?.has_evidence === true ||
+    item?.evidence_url ||
+    item?.document_url ||
+    item?.file_url ||
+    item?.certificate_url ||
+    item?.evidence_filename ||
+    item?.document_id ||
+    item?.certificate_document_id
+  );
+}
+
+function EvidenceFileLink({ item, compact = false, onClick }) {
+  const url = getEvidenceUrl(item);
+  const label = evidenceLabel(item);
+
+  if (!url) {
+    return (
+      <span className={`staff-evidence-file-link missing ${compact ? "compact" : ""}`}>
+        <FileText size={14} />
+        {label || "Evidence missing"}
+      </span>
+    );
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`staff-evidence-file-link ${compact ? "compact" : ""}`}
+      onClick={onClick}
+      title="Open evidence file"
+    >
+      <FileText size={14} />
+      {label}
+    </a>
+  );
 }
 
 function isCompliant(status) {
