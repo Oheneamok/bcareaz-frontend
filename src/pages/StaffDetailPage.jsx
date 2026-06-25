@@ -56,7 +56,6 @@ export default function StaffDetailPage() {
   const [certs, setCerts] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [staffChecklist, setStaffChecklist] = useState(null);
-  const [evidenceOverrides, setEvidenceOverrides] = useState({});
   const [checklistLoading, setChecklistLoading] = useState(false);
   const [taskModalItem, setTaskModalItem] = useState(null);
   const [taskSaving, setTaskSaving] = useState(false);
@@ -71,7 +70,6 @@ export default function StaffDetailPage() {
       return;
     }
 
-    setEvidenceOverrides(loadStaffEvidenceOverrides(staffId));
     loadStaff();
   }, [staffId]);
 
@@ -129,8 +127,8 @@ export default function StaffDetailPage() {
   }
 
   const complianceItems = useMemo(
-    () => applyStaffEvidenceOverrides(normalizeChecklistItems(staffChecklist), evidenceOverrides),
-    [staffChecklist, evidenceOverrides]
+    () => normalizeChecklistItems(staffChecklist),
+    [staffChecklist]
   );
 
   const complianceSummary = useMemo(() => {
@@ -243,17 +241,6 @@ export default function StaffDetailPage() {
           record_group: recordGroup,
         };
       }
-
-      const override = buildEvidenceOverride(taskModalItem, payload, savedRecord, recordGroup);
-      const nextOverrides = {
-        ...evidenceOverrides,
-        [taskModalItem.key || taskModalItem.title]: override,
-      };
-
-      setEvidenceOverrides(nextOverrides);
-      saveStaffEvidenceOverrides(staffId, nextOverrides);
-
-      setStaffChecklist((current) => patchChecklistWithEvidence(current, taskModalItem, override));
 
       setTaskMessage("Evidence saved. Refreshing compliance checklist...");
       await refreshStaffCompliance();
@@ -2037,142 +2024,10 @@ function buildStaffCompliancePayload(item, staffId, form) {
     ...base,
     training_name: item.title,
     training_category: item.section || item.category || "Compliance",
-    training_date: form.completed_date || todayInputValue(),
+    completion_date: form.completed_date || todayInputValue(),
   };
 }
 
-
-function buildEvidenceOverride(item, payload, savedRecord = {}, recordGroup = null) {
-  const savedRecordId = savedRecord.id || savedRecord.record_id || item?.record_id || item?.source_record_id || null;
-  const resolvedRecordGroup = recordGroup || savedRecord.record_group || item?.record_group || getStaffComplianceRecordGroup(item);
-
-  const evidenceUrl =
-    savedRecord.evidence_url ||
-    savedRecord.document_url ||
-    savedRecord.file_url ||
-    payload.evidence_url ||
-    (savedRecordId && resolvedRecordGroup
-      ? `/staff-compliance/${resolvedRecordGroup}/${savedRecordId}/evidence/view`
-      : "");
-
-  const evidenceFilename =
-    savedRecord.evidence_filename ||
-    savedRecord.document_filename ||
-    savedRecord.file_name ||
-    payload.evidence_filename ||
-    evidenceLabel(item) ||
-    "";
-
-  return {
-    status: "COMPLIANT",
-    has_evidence: true,
-    evidence_url: evidenceUrl,
-    evidence_filename: evidenceFilename,
-    document_id: savedRecord.document_id || payload.document_id || item?.document_id || null,
-    certificate_document_id:
-      savedRecord.certificate_document_id ||
-      payload.certificate_document_id ||
-      item?.certificate_document_id ||
-      null,
-    record_id: savedRecordId,
-    record_group: resolvedRecordGroup,
-    completed_date:
-      savedRecord.completed_date ||
-      savedRecord.completion_date ||
-      savedRecord.training_date ||
-      savedRecord.check_date ||
-      savedRecord.clearance_date ||
-      savedRecord.screening_date ||
-      savedRecord.review_date ||
-      payload.completed_date ||
-      payload.completion_date ||
-      payload.training_date ||
-      payload.check_date ||
-      payload.clearance_date ||
-      payload.screening_date ||
-      payload.review_date ||
-      todayInputValue(),
-    expiration_date:
-      savedRecord.expiration_date ||
-      savedRecord.license_expiration_date ||
-      payload.expiration_date ||
-      payload.license_expiration_date ||
-      item?.expiration_date ||
-      null,
-    evidence_status: "EVIDENCE_ATTACHED",
-  };
-}
-
-function patchChecklistWithEvidence(checklist, item, override) {
-  if (!checklist) return checklist;
-
-  const itemKey = item?.key || item?.title;
-
-  const patchItem = (row) => {
-    const rowKey = row?.key || row?.title;
-    if (rowKey !== itemKey) return row;
-
-    return {
-      ...row,
-      ...override,
-      status: "COMPLIANT",
-      has_evidence: true,
-    };
-  };
-
-  const patchedItems = Array.isArray(checklist.items)
-    ? checklist.items.map(patchItem)
-    : checklist.items;
-
-  const patchedSections = Array.isArray(checklist.sections)
-    ? checklist.sections.map((section) => ({
-        ...section,
-        items: Array.isArray(section.items) ? section.items.map(patchItem) : section.items,
-      }))
-    : checklist.sections;
-
-  return {
-    ...checklist,
-    items: patchedItems,
-    sections: patchedSections,
-  };
-}
-
-function applyStaffEvidenceOverrides(items, overrides = {}) {
-  return (items || []).map((item) => {
-    const key = item?.key || item?.title;
-    const override = overrides[key];
-
-    if (!override) return item;
-
-    return {
-      ...item,
-      ...override,
-      status: "COMPLIANT",
-      has_evidence: true,
-    };
-  });
-}
-
-function staffEvidenceOverrideKey(staffId) {
-  return `staff-compliance-evidence-overrides:${staffId || "unknown"}`;
-}
-
-function loadStaffEvidenceOverrides(staffId) {
-  try {
-    return JSON.parse(window.localStorage.getItem(staffEvidenceOverrideKey(staffId)) || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function saveStaffEvidenceOverrides(staffId, overrides) {
-  try {
-    window.localStorage.setItem(staffEvidenceOverrideKey(staffId), JSON.stringify(overrides || {}));
-  } catch {
-    // localStorage can fail in private/incognito mode. The backend save still succeeds.
-  }
-}
 
 
 function getApiErrorMessage(err) {
