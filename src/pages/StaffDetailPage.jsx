@@ -47,7 +47,8 @@ const tabs = [
 ];
 
 export default function StaffDetailPage() {
-  const { staffId } = useParams();
+  const params = useParams();
+  const staffId = params.staffId || params.id;
 
   const [staff, setStaff] = useState(null);
   const [assignments, setAssignments] = useState([]);
@@ -64,11 +65,23 @@ export default function StaffDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!isValidStaffId(staffId)) {
+      setLoading(false);
+      setStaff(null);
+      return;
+    }
+
     setEvidenceOverrides(loadStaffEvidenceOverrides(staffId));
     loadStaff();
   }, [staffId]);
 
   async function loadStaff() {
+    if (!isValidStaffId(staffId)) {
+      setLoading(false);
+      setStaff(null);
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -97,6 +110,8 @@ export default function StaffDetailPage() {
   }
 
   async function refreshStaffCompliance() {
+    if (!isValidStaffId(staffId)) return;
+
     try {
       setChecklistLoading(true);
       const [alertsRes, checklistRes] = await Promise.allSettled([
@@ -177,7 +192,7 @@ export default function StaffDetailPage() {
   }
 
   async function saveComplianceTask(formValues) {
-    if (!taskModalItem) return;
+    if (!taskModalItem || !isValidStaffId(staffId)) return;
 
     try {
       setTaskSaving(true);
@@ -187,42 +202,47 @@ export default function StaffDetailPage() {
       const recordGroup = getStaffComplianceRecordGroup(taskModalItem);
       const payload = buildStaffCompliancePayload(taskModalItem, staffId, formValues);
 
+      const existingRecordId =
+        taskModalItem?.record_id ||
+        taskModalItem?.source_record_id ||
+        null;
+
       let saveRes;
 
-	if (existingRecordId) {
-	  try {
-		saveRes = await api.patch(`${endpoint}/${existingRecordId}`, payload);
-	  } catch {
-		saveRes = await api.post(endpoint, payload);
-	  }
-	} else {
-	  saveRes = await api.post(endpoint, payload);
-	}
+      if (existingRecordId) {
+        try {
+          saveRes = await api.patch(`${endpoint}/${existingRecordId}`, payload);
+        } catch {
+          saveRes = await api.post(endpoint, payload);
+        }
+      } else {
+        saveRes = await api.post(endpoint, payload);
+      }
 
-	let savedRecord = saveRes?.data || {};
-	const savedRecordId = savedRecord.id;
+      let savedRecord = saveRes?.data || {};
+      const savedRecordId = savedRecord.id;
 
-	if (!savedRecordId) {
-	  throw new Error("Compliance record was not created. Cannot upload evidence.");
-	}
+      if (!savedRecordId) {
+        throw new Error("Compliance record was not created. Cannot upload evidence.");
+      }
 
-	if (formValues.evidence_file && recordGroup) {
-	  const data = new FormData();
-	  data.append("evidence", formValues.evidence_file);
+      if (formValues.evidence_file && recordGroup) {
+        const data = new FormData();
+        data.append("evidence", formValues.evidence_file);
 
-	  const evidenceRes = await api.post(
-		`/staff-compliance/${recordGroup}/${savedRecordId}/evidence`,
-		data,
-		{ headers: { "Content-Type": "multipart/form-data" } }
-	  );
+        const evidenceRes = await api.post(
+          `/staff-compliance/${recordGroup}/${savedRecordId}/evidence`,
+          data,
+          { headers: { "Content-Type": "multipart/form-data" } }
+        );
 
-	  savedRecord = {
-		...savedRecord,
-		...evidenceRes.data,
-		id: savedRecordId,
-		record_group: recordGroup,
-	  };
-	}
+        savedRecord = {
+          ...savedRecord,
+          ...evidenceRes.data,
+          id: savedRecordId,
+          record_group: recordGroup,
+        };
+      }
 
       const override = buildEvidenceOverride(taskModalItem, payload, savedRecord, recordGroup);
       const nextOverrides = {
@@ -245,6 +265,14 @@ export default function StaffDetailPage() {
     } finally {
       setTaskSaving(false);
     }
+  }
+
+  if (!isValidStaffId(staffId)) {
+    return (
+      <div className="page">
+        Invalid staff profile link. Go back to Staff Directory and open the profile again.
+      </div>
+    );
   }
 
   if (loading) return <div className="page">Loading staff profile...</div>;
@@ -1890,6 +1918,10 @@ function getFixLocation(item = {}) {
   return "Staff Detail";
 }
 
+
+function isValidStaffId(value) {
+  return Boolean(value && value !== "undefined" && value !== "null");
+}
 
 function todayInputValue() {
   return new Date().toISOString().slice(0, 10);

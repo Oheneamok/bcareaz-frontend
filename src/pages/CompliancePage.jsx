@@ -136,7 +136,7 @@ export default function CompliancePage() {
   async function loadChecklist({ path, setter }) {
     try {
       setChecklistLoading(true);
-      const res = await api.get(path);
+      const res = await api.get(path, { params: { _ts: Date.now() } });
       setter(normalizeChecklist(res.data));
     } catch (err) {
       console.error(err);
@@ -163,16 +163,21 @@ export default function CompliancePage() {
       setChecklistLoading(true);
       const responses = await Promise.allSettled(
         rows
-          .filter((row) => row?.id)
-          .map((row) => api.get(pathBuilder(row.id)).then((res) => ({ row, data: normalizeChecklist(res.data) })))
+          .map((row) => ({ row, entityId: getEntityId(row) }))
+          .filter(({ entityId }) => entityId)
+          .map(({ row, entityId }) =>
+            api
+              .get(pathBuilder(entityId), { params: { _ts: Date.now() } })
+              .then((res) => ({ row, entityId, data: normalizeChecklist(res.data) }))
+          )
       );
 
       const checklists = responses
         .filter((result) => result.status === "fulfilled" && result.value?.data)
         .map((result) => result.value);
 
-      const items = checklists.flatMap(({ row, data }) => {
-        const entityId = data?.[idField] || row.id;
+      const items = checklists.flatMap(({ row, entityId: rowEntityId, data }) => {
+        const entityId = data?.[idField] || rowEntityId || getEntityId(row);
         const entityName = data?.[nameField] || displayName(row, domainLabel);
         return (data.items || flattenSections(data.sections || [])).map((item) => ({
           ...item,
@@ -209,6 +214,30 @@ export default function CompliancePage() {
   const stats = useMemo(() => getChecklistStats(currentChecklist), [currentChecklist]);
   const overallScore = stats.score;
   const overallStatus = getStatus(overallScore, stats.missing);
+
+  async function refreshActiveChecklist() {
+    if (activeTab === "residents") return loadResidentChecklist(selectedResidentId);
+    if (activeTab === "staff") return loadStaffChecklist(selectedStaffId);
+    if (activeTab === "facility") return loadFacilityChecklist();
+  }
+
+  useEffect(() => {
+    const handleFocusRefresh = () => {
+      refreshActiveChecklist();
+    };
+
+    const handleVisibilityRefresh = () => {
+      if (!document.hidden) refreshActiveChecklist();
+    };
+
+    window.addEventListener("focus", handleFocusRefresh);
+    document.addEventListener("visibilitychange", handleVisibilityRefresh);
+
+    return () => {
+      window.removeEventListener("focus", handleFocusRefresh);
+      document.removeEventListener("visibilitychange", handleVisibilityRefresh);
+    };
+  }, [activeTab, selectedResidentId, selectedStaffId, residents.length, staff.length]);
 
   async function saveComment() {
     if (!selectedItem) return;
@@ -308,11 +337,7 @@ export default function CompliancePage() {
             </select>
           )}
 
-          <button className="secondary-button" type="button" onClick={() => {
-            if (activeTab === "residents") loadResidentChecklist(selectedResidentId);
-            if (activeTab === "staff") loadStaffChecklist(selectedStaffId);
-            if (activeTab === "facility") loadFacilityChecklist();
-          }}>
+          <button className="secondary-button" type="button" onClick={refreshActiveChecklist}>
             <RefreshCw size={16} /> Refresh Source Check
           </button>
         </div>
@@ -398,12 +423,20 @@ export default function CompliancePage() {
             <div className="modal-actions">
               {getEvidenceUrl(selectedItem) && (
                 <>
-                  <a className="secondary-button" href={getEvidenceUrl(selectedItem)} target="_blank" rel="noreferrer">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => openEvidenceFile(selectedItem)}
+                  >
                     <Eye size={16} /> View Evidence
-                  </a>
-                  <a className="secondary-button" href={getEvidenceUrl(selectedItem)} download>
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => openEvidenceFile(selectedItem, true)}
+                  >
                     <Download size={16} /> Download
-                  </a>
+                  </button>
                 </>
               )}
               <a className="secondary-button" href={getDetailUrl(activeTab, selectedResidentId, selectedStaffId, selectedItem)}>
@@ -440,7 +473,7 @@ function ChecklistView({ checklist, activeTab, detailPath, onSelect }) {
 
           <div className="item-list">
             {(section.items || []).map((item) => (
-              <button key={item.key || item.title} className={`source-item ${itemStatusClass(item)}`} type="button" onClick={() => onSelect({ ...item, entity_id: entityId })}>
+              <button key={item.key || item.title} className={`source-item ${itemStatusClass(item)}`} type="button" onClick={() => onSelect({ ...item, entity_id: item.entity_id || entityId })}>
                 <div className="source-left">
                   {isCompliantItem(item) ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
                   <div>
@@ -496,17 +529,19 @@ function EvidenceFileLink({ item, compact = false, onClick }) {
   }
 
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
+    <button
+      type="button"
       className={`compliance-file-link ${compact ? "compact" : ""}`}
-      onClick={onClick}
+      onClick={(event) => {
+        if (onClick) onClick(event);
+        event.stopPropagation();
+        openEvidenceFile(item);
+      }}
       title="Open evidence file"
     >
       <FileText size={14} />
       {label}
-    </a>
+    </button>
   );
 }
 
@@ -536,11 +571,21 @@ function normalizeCollection(payload) {
 function normalizeChecklist(payload) {
   if (!payload) return null;
   if (payload.checklist) return normalizeChecklist(payload.checklist);
-  const items = payload.items || flattenSections(payload.sections || []);
+
+  const rawItems = payload.items || flattenSections(payload.sections || []);
+  const items = rawItems.map(normalizeEvidenceItem);
+
+  const sections = payload.sections
+    ? payload.sections.map((section) => ({
+        ...section,
+        items: (section.items || []).map(normalizeEvidenceItem),
+      }))
+    : groupItems(items);
+
   return {
     ...payload,
     items,
-    sections: payload.sections || groupItems(items),
+    sections,
   };
 }
 
@@ -646,13 +691,145 @@ function normalizeStatus(status) {
 
 function getEvidenceUrl(item) {
   if (!item) return "";
-  if (item.evidence_url) return item.evidence_url;
-  if (item.document_url) return item.document_url;
-  if (item.file_url) return item.file_url;
-  if (item.certificate_url) return item.certificate_url;
-  if (item.document_id) return `/documents/${item.document_id}`;
-  if (item.certificate_document_id) return `/documents/${item.certificate_document_id}`;
+
+  const rawUrl =
+    item.evidence_url ||
+    item.document_url ||
+    item.file_url ||
+    item.certificate_url ||
+    "";
+
+  if (rawUrl && !isBareFilename(rawUrl)) return resolveApiFileUrl(rawUrl);
+
+  const recordGroup = item.record_group;
+  const recordId = item.record_id || item.source_record_id;
+
+  if (recordGroup && recordId) {
+    return resolveApiFileUrl(`/staff-compliance/${recordGroup}/${recordId}/evidence/view`);
+  }
+
+  if (item.document_id) return resolveApiFileUrl(`/documents/${item.document_id}`);
+  if (item.certificate_document_id) return resolveApiFileUrl(`/documents/${item.certificate_document_id}`);
+
   return "";
+}
+
+function isBareFilename(value = "") {
+  const text = String(value || "").trim();
+  return Boolean(text && !text.startsWith("http") && !text.startsWith("/") && !text.includes("/"));
+}
+
+function resolveApiFileUrl(path = "") {
+  if (!path) return "";
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+
+  const base = api.defaults?.baseURL || "";
+
+  if (path.startsWith("/api/")) {
+    if (base.startsWith("http")) {
+      try {
+        return `${new URL(base).origin}${path}`;
+      } catch {
+        return path;
+      }
+    }
+    return path;
+  }
+
+  if (path.startsWith("/")) {
+    if (base.startsWith("http")) {
+      try {
+        const baseUrl = new URL(base);
+        if (baseUrl.pathname.endsWith("/api/v1")) return `${base}${path}`;
+        return `${baseUrl.origin}${path}`;
+      } catch {
+        return `${base}${path}`;
+      }
+    }
+    return `${base}${path}`.replace(/\/\/+/g, "/");
+  }
+
+  if (base) return `${base.replace(/\/$/, "")}/${path}`;
+  return path;
+}
+
+async function openEvidenceFile(item, download = false) {
+  try {
+    const url = getEvidenceUrl(item);
+
+    if (!url) {
+      alert("No evidence file is attached yet.");
+      return;
+    }
+
+    let requestUrl = url;
+    const baseURL = api.defaults?.baseURL || "";
+
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      const evidenceUrl = new URL(url);
+      const apiUrl = baseURL ? new URL(baseURL) : null;
+
+      if (!apiUrl || evidenceUrl.origin !== apiUrl.origin) {
+        window.open(url, "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      requestUrl = evidenceUrl.pathname + evidenceUrl.search;
+    }
+
+    requestUrl = requestUrl.replace(/^\/api\/v1/, "");
+
+    const res = await api.get(requestUrl, {
+      responseType: "blob",
+      params: { _ts: Date.now() },
+    });
+
+    const contentType = res.headers?.["content-type"] || "application/octet-stream";
+    const blob = new Blob([res.data], { type: contentType });
+    const blobUrl = window.URL.createObjectURL(blob);
+
+    if (download) {
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = evidenceLabel(item) || "evidence";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(blobUrl);
+      return;
+    }
+
+    window.open(blobUrl, "_blank", "noopener,noreferrer");
+  } catch (err) {
+    console.error(err);
+    alert("Could not open evidence file. Refresh the checklist or re-upload the evidence if this is an older record.");
+  }
+}
+
+function normalizeEvidenceItem(item = {}) {
+  const withUrl = {
+    ...item,
+    evidence_url: getEvidenceUrl(item) || item.evidence_url || item.document_url || item.file_url || "",
+  };
+
+  if (hasEvidence(withUrl)) {
+    return {
+      ...withUrl,
+      status: "COMPLIANT",
+      has_evidence: true,
+      evidence_status: withUrl.evidence_status || "EVIDENCE_ATTACHED",
+    };
+  }
+
+  if (hasSourceRecord(withUrl)) {
+    return {
+      ...withUrl,
+      status: withUrl.status || "MISSING_EVIDENCE",
+      evidence_status: withUrl.evidence_status || "RECORD_FOUND_EVIDENCE_REQUIRED",
+    };
+  }
+
+  return withUrl;
 }
 
 function evidenceLabel(item) {
@@ -674,6 +851,10 @@ function getStatus(score, missing) {
   if (missing > 0 || score < 75) return "High Risk";
   if (score < 95) return "Needs Review";
   return "Survey Ready";
+}
+
+function getEntityId(row = {}) {
+  return row.id || row.staff_id || row.resident_id || row.profile_id || row.uuid || "";
 }
 
 function displayName(row, fallback) {
@@ -1164,6 +1345,43 @@ function ComplianceStyles() {
         outline: none;
       }
       .audit-modal textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
+
+      .compliance-file-link {
+        border: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #2563eb;
+        font-weight: 950;
+        text-decoration: none;
+        padding: 7px 10px;
+        border-radius: 12px;
+        background: rgba(37, 99, 235, 0.08);
+        border: 1px solid rgba(37, 99, 235, 0.14);
+        width: max-content;
+        max-width: 100%;
+        cursor: pointer;
+        transition: 0.18s ease;
+      }
+
+      .compliance-file-link:hover {
+        background: rgba(37, 99, 235, 0.14);
+        transform: translateY(-1px);
+      }
+
+      .compliance-file-link.compact {
+        margin-top: 6px;
+        font-size: 0.78rem;
+        padding: 5px 8px;
+      }
+
+      .compliance-file-link.missing {
+        color: #b91c1c;
+        background: #fef2f2;
+        border-color: #fecaca;
+        cursor: default;
+      }
+
       .modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 14px; }
 
       @media(max-width: 1100px) {
