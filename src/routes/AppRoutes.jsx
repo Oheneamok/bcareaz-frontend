@@ -18,6 +18,9 @@ import FacilityComplianceLogsPage from "../pages/FacilityComplianceLogsPage";
 import FacilityGroupNotesAuditPage from "../pages/FacilityGroupNotesAuditPage";
 import FacilityProgressNoteAuditPage from "../pages/FacilityProgressNoteAuditPage";
 import ResidentCarePage from "../pages/ResidentCarePage";
+import OperationsCenterPage from "../pages/OperationsCenterPage";
+import NursingPage from "../pages/NursingPage";
+
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("bcareaz_token");
@@ -74,7 +77,9 @@ export default function AppRoutes() {
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
 		<Route path="/resident-care" element={<ResidentCarePage />} />
-
+		<Route path="/operations-center" element={<OperationsCenterPage />} />
+		<Route path="/nursing" element={<NursingPage />} />
+	
         <Route
           path="/facility-compliance/logs"
           element={<FacilityComplianceLogsPage />}
