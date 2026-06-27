@@ -26,10 +26,20 @@ export default function LoginPage() {
         password,
       });
 
-      localStorage.setItem("bcareaz_token", res.data.access_token);
-      localStorage.setItem("bcareaz_user", JSON.stringify(res.data.user || {}));
+		localStorage.setItem("bcareaz_token", res.data.access_token);
+		localStorage.setItem("bcareaz_user", JSON.stringify(res.data.user || {}));
 
-      window.location.href = "/";
+		try {
+		  const permissionsRes = await api.get("/portal/me/permissions");
+		  localStorage.setItem(
+			"unifiedcare_permissions",
+			JSON.stringify(permissionsRes.data)
+		  );
+		} catch (permissionError) {
+		  console.warn("Portal permissions could not be loaded.", permissionError);
+		}
+
+		window.location.href = "/portal";
     } catch (err) {
       setError(
         err?.response?.data?.detail ||

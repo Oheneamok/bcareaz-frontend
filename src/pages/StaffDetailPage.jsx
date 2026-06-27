@@ -56,6 +56,7 @@ export default function StaffDetailPage() {
   const [certs, setCerts] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [staffChecklist, setStaffChecklist] = useState(null);
+  const [evidenceOverrides, setEvidenceOverrides] = useState({});
   const [checklistLoading, setChecklistLoading] = useState(false);
   const [taskModalItem, setTaskModalItem] = useState(null);
   const [taskSaving, setTaskSaving] = useState(false);
@@ -70,6 +71,7 @@ export default function StaffDetailPage() {
       return;
     }
 
+    setEvidenceOverrides(loadStaffEvidenceOverrides(staffId));
     loadStaff();
   }, [staffId]);
 
@@ -127,8 +129,8 @@ export default function StaffDetailPage() {
   }
 
   const complianceItems = useMemo(
-    () => normalizeChecklistItems(staffChecklist),
-    [staffChecklist]
+    () => applyStaffEvidenceOverrides(normalizeChecklistItems(staffChecklist), evidenceOverrides),
+    [staffChecklist, evidenceOverrides]
   );
 
   const complianceSummary = useMemo(() => {
@@ -199,48 +201,108 @@ export default function StaffDetailPage() {
       const endpoint = getStaffComplianceSaveEndpoint(taskModalItem);
       const recordGroup = getStaffComplianceRecordGroup(taskModalItem);
       const payload = buildStaffCompliancePayload(taskModalItem, staffId, formValues);
+      const isTrainingRecord = recordGroup === "training-records";
 
-      const existingRecordId =
-        taskModalItem?.record_id ||
-        taskModalItem?.source_record_id ||
-        null;
+      let savedRecord = null;
 
-      let saveRes;
+      // Training evidence uses one backend transaction:
+      // create training row -> upload to Azure Blob -> save evidence fields -> commit.
+      // This avoids the old two-step bug where POST /training-records did not persist
+      // before POST /training-records/{id}/evidence was called.
+      if (isTrainingRecord && formValues.evidence_file) {
+        const form = new FormData();
+        form.append("staff_id", staffId);
+        form.append("training_name", taskModalItem.title || payload.training_name || "Training");
+        form.append("training_category", payload.training_category || taskModalItem.section || "Training");
+        form.append("training_date", payload.training_date || formValues.completed_date || todayInputValue());
+        form.append("completion_date", payload.completion_date || formValues.completed_date || todayInputValue());
+        form.append("expiration_date", payload.expiration_date || formValues.expiration_date || "");
+        form.append("status", payload.status || "COMPLETED");
+        form.append("notes", payload.notes || formValues.notes || "");
+        form.append("evidence", formValues.evidence_file);
 
-      if (existingRecordId) {
-        try {
-          saveRes = await api.patch(`${endpoint}/${existingRecordId}`, payload);
-        } catch {
-          saveRes = await api.post(endpoint, payload);
-        }
-      } else {
-        saveRes = await api.post(endpoint, payload);
-      }
-
-      let savedRecord = saveRes?.data || {};
-      const savedRecordId = savedRecord.id;
-
-      if (!savedRecordId) {
-        throw new Error("Compliance record was not created. Cannot upload evidence.");
-      }
-
-      if (formValues.evidence_file && recordGroup) {
-        const data = new FormData();
-        data.append("evidence", formValues.evidence_file);
-
-        const evidenceRes = await api.post(
-          `/staff-compliance/${recordGroup}/${savedRecordId}/evidence`,
-          data,
+        const res = await api.post(
+          "/staff-compliance/training-records/with-evidence",
+          form,
           { headers: { "Content-Type": "multipart/form-data" } }
         );
 
         savedRecord = {
-          ...savedRecord,
-          ...evidenceRes.data,
-          id: savedRecordId,
-          record_group: recordGroup,
+          ...(res?.data || {}),
+          record_group: "training-records",
         };
+      } else {
+        // Non-training tasks can still use create/update, then attach evidence.
+        // Only patch when the checklist item is already truly compliant and has a real source record.
+        // Missing or missing-evidence tasks create a fresh source record first.
+        const existingRecordId =
+          isEvidenceCompliant(taskModalItem) &&
+          (taskModalItem?.record_id || taskModalItem?.source_record_id)
+            ? taskModalItem.record_id || taskModalItem.source_record_id
+            : null;
+
+        let saveRes;
+
+        if (existingRecordId) {
+          try {
+            saveRes = await api.patch(`${endpoint}/${existingRecordId}`, payload);
+          } catch {
+            saveRes = await api.post(endpoint, payload);
+          }
+        } else {
+          saveRes = await api.post(endpoint, payload);
+        }
+
+        savedRecord = saveRes?.data || {};
+        const savedRecordId = savedRecord.id;
+
+        if (!savedRecordId) {
+          throw new Error("Compliance record was not created. Cannot upload evidence.");
+        }
+
+        if (formValues.evidence_file && recordGroup) {
+          const data = new FormData();
+          data.append("evidence", formValues.evidence_file);
+
+          const evidenceRes = await api.post(
+            `/staff-compliance/${recordGroup}/${savedRecordId}/evidence`,
+            data,
+            { headers: { "Content-Type": "multipart/form-data" } }
+          );
+
+          savedRecord = {
+            ...savedRecord,
+            ...(evidenceRes?.data || {}),
+            id: savedRecordId,
+            record_group: recordGroup,
+          };
+        } else {
+          savedRecord = {
+            ...savedRecord,
+            record_group: recordGroup,
+          };
+        }
       }
+
+      if (!savedRecord?.id && !savedRecord?.record_id) {
+        throw new Error("Compliance record was not saved.");
+      }
+
+      const override = buildEvidenceOverride(
+        taskModalItem,
+        payload,
+        savedRecord,
+        savedRecord.record_group || recordGroup
+      );
+      const nextOverrides = {
+        ...evidenceOverrides,
+        [taskModalItem.key || taskModalItem.title]: override,
+      };
+
+      setEvidenceOverrides(nextOverrides);
+      saveStaffEvidenceOverrides(staffId, nextOverrides);
+
+      setStaffChecklist((current) => patchChecklistWithEvidence(current, taskModalItem, override));
 
       setTaskMessage("Evidence saved. Refreshing compliance checklist...");
       await refreshStaffCompliance();
@@ -415,7 +477,14 @@ export default function StaffDetailPage() {
         )}
 
         {activeTab === "Training" && (
-          <StaffTrainingTab staff={staff} staffId={staffId} />
+          <StaffTrainingSourceTab
+            staff={staff}
+            staffId={staffId}
+            items={complianceItems}
+            loading={checklistLoading}
+            onRefresh={refreshStaffCompliance}
+            onOpenTask={openComplianceTask}
+          />
         )}
 
         {activeTab === "Continuing Education" && (
@@ -472,8 +541,123 @@ export default function StaffDetailPage() {
 
 
 
+
+function StaffTrainingSourceTab({ staff, staffId, items, loading, onRefresh, onOpenTask }) {
+  const requiredTrainingKeys = new Set([
+    "BHP_OVERSIGHT",
+    "FALL_PREVENTION",
+    "MEDICATION_SELF_ADMIN",
+    "CULTURAL_COMPETENCY",
+    "CONDUCTING_ASSESSMENTS",
+    "TREATMENT_PLAN",
+    "DISCHARGE_PLANS",
+    "PROGRESS_NOTE_WRITING",
+    "DIABETES_TRAINING",
+    "EMERGENCY_RESPONSE",
+  ]);
+
+  const requiredItems = (items || []).filter((item) => {
+    const section = String(item.section || item.category || "").toLowerCase();
+    return requiredTrainingKeys.has(item.key) || section === "training" || section === "compliance";
+  });
+
+  const missingItems = requiredItems.filter((item) => !isEvidenceCompliant(item));
+  const readyItems = requiredItems.filter((item) => isEvidenceCompliant(item));
+
+  return (
+    <div className="staff-training-source-shell">
+      <section className={`staff-compliance-command ${missingItems.length ? "risk" : "ready"}`}>
+        <div>
+          <p className="dashboard-eyebrow">Training Evidence Source Check</p>
+          <h2>{missingItems.length ? "Required training evidence needed" : "Training evidence is complete"}</h2>
+          <p>
+            These are the required staff training and oversight items used by the Compliance Center. Complete or upload
+            evidence here and the Compliance Page will update from the same backend checklist.
+          </p>
+        </div>
+
+        <div className="staff-compliance-score-ring">
+          <strong>{requiredItems.length ? Math.round((readyItems.length / requiredItems.length) * 100) : 0}%</strong>
+          <span>{readyItems.length}/{requiredItems.length || 0} complete</span>
+        </div>
+
+        <button type="button" className="staff-refresh-pill" onClick={onRefresh} disabled={loading}>
+          <RefreshCw size={15} />
+          {loading ? "Checking..." : "Refresh"}
+        </button>
+      </section>
+
+      <section className="resident-style-section">
+        <div className="resident-style-section-head">
+          <div>
+            <p className="dashboard-eyebrow">Staff Detail · Required Training</p>
+            <h3>Required Training & Oversight Evidence</h3>
+          </div>
+          <span>{requiredItems.length} items</span>
+        </div>
+
+        {requiredItems.length === 0 ? (
+          <div className="staff-compliance-empty resident-style">
+            <ShieldCheck size={28} />
+            <strong>No required training checklist returned.</strong>
+            <p>Confirm /staff-compliance/checklist/{staffId} includes training items.</p>
+          </div>
+        ) : (
+          <div className="resident-style-item-list">
+            {requiredItems.map((item) => {
+              const ok = isEvidenceCompliant(item);
+              return (
+                <button
+                  type="button"
+                  className={`resident-style-compliance-item ${ok ? "compliant" : "missing"}`}
+                  key={item.key || item.title}
+                  onClick={() => onOpenTask(item)}
+                >
+                  <div className="resident-style-item-icon">
+                    {ok ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+                  </div>
+
+                  <div className="resident-style-item-body">
+                    <div className="resident-style-title-row">
+                      <strong>{item.title}</strong>
+                      <span className={`resident-style-status ${ok ? "ok" : "missing"}`}>
+                        {ok ? "Compliant" : normalizeEvidenceStatus(item)}
+                      </span>
+                    </div>
+
+                    {ok ? (
+                      <EvidenceFileLink item={item} />
+                    ) : (
+                      <p>
+                        {hasSourceRecord(item)
+                          ? "Record found, but evidence is missing."
+                          : "No evidence attached. Click to add training evidence."}
+                      </p>
+                    )}
+
+                    <div className="resident-style-meta">
+                      {item.expiration_date && <span>Expires: {formatDate(item.expiration_date)}</span>}
+                      {item.completed_date && <span>Completed: {formatDate(item.completed_date)}</span>}
+                      <span>{item.source_label || "Staff Detail · Training"}</span>
+                    </div>
+                  </div>
+
+                  <b>{ok ? "View Evidence" : "Add Evidence"}</b>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <StaffTrainingTab staff={staff} staffId={staffId} />
+    </div>
+  );
+}
+
+
 function StaffComplianceMirrorTab({ staff, staffId, items, summary, loading, onRefresh, onOpenTask }) {
-  const sections = groupChecklistItems(items);
+  const sections = getAllComplianceSections(items);
   const missingItems = items.filter((item) => !isEvidenceCompliant(item));
   const compliantItems = items.filter((item) => isEvidenceCompliant(item));
 
@@ -816,7 +1000,8 @@ function StaffComplianceTaskModal({ item, staff, saving, message, onClose, onSav
 function StaffDetailComplianceStyles() {
   return (
     <style>{`
-      .staff-resident-style-compliance {
+      .staff-resident-style-compliance,
+      .staff-training-source-shell {
         display: grid;
         gap: 18px;
       }
@@ -1689,13 +1874,64 @@ function flattenSections(sections) {
   );
 }
 
+function normalizeComplianceSectionTitle(value, item = {}) {
+  const raw = String(value || item.section || item.category || item.area || getFixLocation(item) || "Other").trim();
+  const lower = raw.toLowerCase();
+
+  // These items must always render with the training requirements list, even if the
+  // backend/source tab labels them as Compliance or Staff Detail.
+  const trainingKeys = new Set([
+    "BHP_OVERSIGHT",
+    "FALL_PREVENTION",
+    "MEDICATION_SELF_ADMIN",
+    "CULTURAL_COMPETENCY",
+    "CONDUCTING_ASSESSMENTS",
+    "TREATMENT_PLAN",
+    "DISCHARGE_PLANS",
+    "PROGRESS_NOTE_WRITING",
+    "DIABETES_TRAINING",
+    "EMERGENCY_RESPONSE",
+  ]);
+
+  if (trainingKeys.has(item.key)) return "Training";
+
+  if (lower.includes("credential")) return "Credentials";
+  if (lower.includes("training")) return "Training";
+  if (lower.includes("continuing")) return "Continuing Education";
+  if (lower.includes("compliance")) return "Compliance";
+  if (lower.includes("document")) return "Documents";
+  if (lower.includes("schedule")) return "Schedule";
+
+  return raw || "Other";
+}
+
+function getAllComplianceSections(items) {
+  const sections = groupChecklistItems(items);
+  const order = ["Credentials", "Training", "Continuing Education", "Compliance", "Documents", "Schedule", "Other"];
+
+  return sections.sort((a, b) => {
+    const ai = order.indexOf(a.title);
+    const bi = order.indexOf(b.title);
+    const ao = ai === -1 ? 999 : ai;
+    const bo = bi === -1 ? 999 : bi;
+    if (ao !== bo) return ao - bo;
+    return a.title.localeCompare(b.title);
+  });
+}
+
 function groupChecklistItems(items) {
   const map = new Map();
-  items.forEach((item) => {
-    const title = item.section || item.category || item.area || getFixLocation(item);
+
+  (items || []).forEach((item) => {
+    const title = normalizeComplianceSectionTitle(
+      item.section || item.category || item.area || getFixLocation(item),
+      item
+    );
+
     if (!map.has(title)) map.set(title, []);
     map.get(title).push(item);
   });
+
   return Array.from(map.entries()).map(([title, sectionItems]) => ({ title, items: sectionItems }));
 }
 
@@ -1915,6 +2151,13 @@ function todayInputValue() {
 }
 
 function getStaffComplianceSaveEndpoint(item = {}) {
+  // Source-of-truth rule:
+  // The backend checklist decides the correct record group for each compliance item.
+  // This prevents frontend keyword guesses from saving training items into the wrong table.
+  if (item.record_group) {
+    return `/staff-compliance/${item.record_group}`;
+  }
+
   const text = `${item.key || ""} ${item.title || ""}`.toLowerCase();
 
   if (text.includes("fingerprint")) return "/staff-compliance/fingerprint-clearance";
@@ -1923,15 +2166,15 @@ function getStaffComplianceSaveEndpoint(item = {}) {
   if (text.includes("background") || text.includes("application") || text.includes("reference")) return "/staff-compliance/background-checks";
   if (text.includes("driver") || text.includes("vehicle")) return "/staff-compliance/driver-records";
   if (text.includes("continuing") || text.includes("ce ")) return "/staff-compliance/continuing-education";
+
+  // Only true credential/identity competency items should fall here.
+  // Training items such as assessment, treatment plan, discharge plan, progress note,
+  // BHP oversight, etc. should remain training-records unless backend record_group says otherwise.
   if (
     text.includes("competency") ||
-    text.includes("assessment") ||
-    text.includes("treatment plan") ||
-    text.includes("discharge") ||
-    text.includes("progress note") ||
-    text.includes("bhp") ||
-    text.includes("id") ||
-    text.includes("citizen")
+    text.includes("id and age") ||
+    text.includes("citizen") ||
+    text.includes("work authorization")
   ) return "/staff-compliance/competencies";
 
   return "/staff-compliance/training-records";
@@ -2024,10 +2267,142 @@ function buildStaffCompliancePayload(item, staffId, form) {
     ...base,
     training_name: item.title,
     training_category: item.section || item.category || "Compliance",
-    completion_date: form.completed_date || todayInputValue(),
+    training_date: form.completed_date || todayInputValue(),
   };
 }
 
+
+function buildEvidenceOverride(item, payload, savedRecord = {}, recordGroup = null) {
+  const savedRecordId = savedRecord.id || savedRecord.record_id || item?.record_id || item?.source_record_id || null;
+  const resolvedRecordGroup = recordGroup || savedRecord.record_group || item?.record_group || getStaffComplianceRecordGroup(item);
+
+  const evidenceUrl =
+    savedRecord.evidence_url ||
+    savedRecord.document_url ||
+    savedRecord.file_url ||
+    payload.evidence_url ||
+    (savedRecordId && resolvedRecordGroup
+      ? `/staff-compliance/${resolvedRecordGroup}/${savedRecordId}/evidence/view`
+      : "");
+
+  const evidenceFilename =
+    savedRecord.evidence_filename ||
+    savedRecord.document_filename ||
+    savedRecord.file_name ||
+    payload.evidence_filename ||
+    evidenceLabel(item) ||
+    "";
+
+  return {
+    status: "COMPLIANT",
+    has_evidence: true,
+    evidence_url: evidenceUrl,
+    evidence_filename: evidenceFilename,
+    document_id: savedRecord.document_id || payload.document_id || item?.document_id || null,
+    certificate_document_id:
+      savedRecord.certificate_document_id ||
+      payload.certificate_document_id ||
+      item?.certificate_document_id ||
+      null,
+    record_id: savedRecordId,
+    record_group: resolvedRecordGroup,
+    completed_date:
+      savedRecord.completed_date ||
+      savedRecord.completion_date ||
+      savedRecord.training_date ||
+      savedRecord.check_date ||
+      savedRecord.clearance_date ||
+      savedRecord.screening_date ||
+      savedRecord.review_date ||
+      payload.completed_date ||
+      payload.completion_date ||
+      payload.training_date ||
+      payload.check_date ||
+      payload.clearance_date ||
+      payload.screening_date ||
+      payload.review_date ||
+      todayInputValue(),
+    expiration_date:
+      savedRecord.expiration_date ||
+      savedRecord.license_expiration_date ||
+      payload.expiration_date ||
+      payload.license_expiration_date ||
+      item?.expiration_date ||
+      null,
+    evidence_status: "EVIDENCE_ATTACHED",
+  };
+}
+
+function patchChecklistWithEvidence(checklist, item, override) {
+  if (!checklist) return checklist;
+
+  const itemKey = item?.key || item?.title;
+
+  const patchItem = (row) => {
+    const rowKey = row?.key || row?.title;
+    if (rowKey !== itemKey) return row;
+
+    return {
+      ...row,
+      ...override,
+      status: "COMPLIANT",
+      has_evidence: true,
+    };
+  };
+
+  const patchedItems = Array.isArray(checklist.items)
+    ? checklist.items.map(patchItem)
+    : checklist.items;
+
+  const patchedSections = Array.isArray(checklist.sections)
+    ? checklist.sections.map((section) => ({
+        ...section,
+        items: Array.isArray(section.items) ? section.items.map(patchItem) : section.items,
+      }))
+    : checklist.sections;
+
+  return {
+    ...checklist,
+    items: patchedItems,
+    sections: patchedSections,
+  };
+}
+
+function applyStaffEvidenceOverrides(items, overrides = {}) {
+  return (items || []).map((item) => {
+    const key = item?.key || item?.title;
+    const override = overrides[key];
+
+    if (!override) return item;
+
+    return {
+      ...item,
+      ...override,
+      status: "COMPLIANT",
+      has_evidence: true,
+    };
+  });
+}
+
+function staffEvidenceOverrideKey(staffId) {
+  return `staff-compliance-evidence-overrides:${staffId || "unknown"}`;
+}
+
+function loadStaffEvidenceOverrides(staffId) {
+  try {
+    return JSON.parse(window.localStorage.getItem(staffEvidenceOverrideKey(staffId)) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveStaffEvidenceOverrides(staffId, overrides) {
+  try {
+    window.localStorage.setItem(staffEvidenceOverrideKey(staffId), JSON.stringify(overrides || {}));
+  } catch {
+    // localStorage can fail in private/incognito mode. The backend save still succeeds.
+  }
+}
 
 
 function getApiErrorMessage(err) {

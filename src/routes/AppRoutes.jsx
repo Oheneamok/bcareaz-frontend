@@ -13,6 +13,12 @@ import CompliancePage from "../pages/CompliancePage";
 import DocumentsPage from "../pages/DocumentsPage";
 import NotificationsPage from "../pages/NotificationsPage";
 
+import PortalHomePage from "../pages/PortalHomePage";
+import FacilityComplianceLogsPage from "../pages/FacilityComplianceLogsPage";
+import FacilityGroupNotesAuditPage from "../pages/FacilityGroupNotesAuditPage";
+import FacilityProgressNoteAuditPage from "../pages/FacilityProgressNoteAuditPage";
+import ResidentCarePage from "../pages/ResidentCarePage";
+
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("bcareaz_token");
 
@@ -27,7 +33,7 @@ function PublicRoute({ children }) {
   const token = localStorage.getItem("bcareaz_token");
 
   if (token) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/portal" replace />;
   }
 
   return children;
@@ -52,19 +58,38 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route path="/" element={<DashboardPage />} />
+        <Route path="/" element={<Navigate to="/portal" replace />} />
+        <Route path="/portal" element={<PortalHomePage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+
         <Route path="/residents" element={<ResidentsPage />} />
         <Route path="/residents/:residentId" element={<ResidentDetailPage />} />
+
         <Route path="/staff" element={<StaffPage />} />
         <Route path="/staff/:staffId" element={<StaffDetailPage />} />
+
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/compliance" element={<CompliancePage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
+		<Route path="/resident-care" element={<ResidentCarePage />} />
+
+        <Route
+          path="/facility-compliance/logs"
+          element={<FacilityComplianceLogsPage />}
+        />
+        <Route
+          path="/facility-compliance/group-notes-audit"
+          element={<FacilityGroupNotesAuditPage />}
+        />
+        <Route
+          path="/facility-compliance/progress-note-audit"
+          element={<FacilityProgressNoteAuditPage />}
+        />
       </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to="/portal" replace />} />
     </Routes>
   );
 }

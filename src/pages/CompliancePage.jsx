@@ -1,478 +1,1410 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Building2,
   CheckCircle2,
   ClipboardCheck,
   Eye,
-  FileCheck2,
+  FileText,
+  Download,
+  MessageSquare,
   RefreshCw,
-  Search,
   ShieldAlert,
   ShieldCheck,
-  UploadCloud,
-  UsersRound,
+  UserRound,
+  Users,
 } from "lucide-react";
 
 import api from "../services/api";
 
-const complianceSections = [
-  "ALL",
-  "Credentials",
-  "Training",
-  "Compliance",
-  "Continuing Education",
-];
+const DOMAINS = {
+  residents: {
+    label: "Resident",
+    plural: "Residents",
+    icon: Users,
+    selectLabel: "Filter by resident",
+    checklistPath: (id) => `/resident-compliance/checklist/${id}`,
+    detailPath: (id) => `/residents/${id}`,
+  },
+  staff: {
+    label: "Staff",
+    plural: "Staff",
+    icon: UserRound,
+    selectLabel: "Filter by staff",
+    checklistPath: (id) => `/staff-compliance/checklist/${id}`,
+    detailPath: (id) => `/staff/${id}`,
+  },
+  facility: {
+    label: "Facility",
+    plural: "Facility",
+    icon: Building2,
+    checklistPath: () => `/facility-compliance/checklist`,
+    detailPath: () => `/facility-compliance`,
+  },
+};
 
 export default function CompliancePage() {
-  const [dashboard, setDashboard] = useState(null);
+  const [activeTab, setActiveTab] = useState("residents");
+  const [residents, setResidents] = useState([]);
   const [staff, setStaff] = useState([]);
+  const [selectedResidentId, setSelectedResidentId] = useState("");
   const [selectedStaffId, setSelectedStaffId] = useState("");
-  const [checklist, setChecklist] = useState(null);
-  const [alerts, setAlerts] = useState([]);
+  const [residentChecklist, setResidentChecklist] = useState(null);
+  const [staffChecklist, setStaffChecklist] = useState(null);
+  const [facilityChecklist, setFacilityChecklist] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [comment, setComment] = useState("");
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
-  const [loadingChecklist, setLoadingChecklist] = useState(false);
-  const [search, setSearch] = useState("");
-  const [sectionFilter, setSectionFilter] = useState("ALL");
-  const [toast, setToast] = useState(null);
+  const [checklistLoading, setChecklistLoading] = useState(false);
 
   useEffect(() => {
-    loadPage();
+    loadPeople();
   }, []);
 
   useEffect(() => {
-    if (selectedStaffId) {
-      loadChecklist(selectedStaffId);
-    }
-  }, [selectedStaffId]);
+    if (activeTab === "residents") loadResidentChecklist(selectedResidentId);
+    if (activeTab === "staff") loadStaffChecklist(selectedStaffId);
+    if (activeTab === "facility") loadFacilityChecklist();
+  }, [activeTab, selectedResidentId, selectedStaffId, residents.length, staff.length]);
 
-  function showToast(type, title, message) {
-    setToast({ type, title, message });
-    setTimeout(() => setToast(null), 3500);
-  }
-
-  async function loadPage() {
+  async function loadPeople() {
     try {
       setLoading(true);
-
-      const [dashboardRes, staffRes, alertsRes] = await Promise.allSettled([
-        api.get("/staff-compliance/dashboard"),
-        api.get("/staff"),
-        api.get("/staff-compliance/alerts"),
+      const [residentRes, staffRes] = await Promise.allSettled([
+        fetchFirstAvailable(["/residents", "/residents/", "/resident/residents"]),
+        fetchFirstAvailable(["/staff", "/staff/", "/staff/profiles"]),
       ]);
 
-      setDashboard(
-        dashboardRes.status === "fulfilled" ? dashboardRes.value.data : null
-      );
+      const residentRows = residentRes.status === "fulfilled" ? normalizeCollection(residentRes.value.data) : [];
+      const staffRows = staffRes.status === "fulfilled" ? normalizeCollection(staffRes.value.data) : [];
 
-      const staffList =
-        staffRes.status === "fulfilled" && Array.isArray(staffRes.value.data)
-          ? staffRes.value.data
-          : [];
-
-      setStaff(staffList);
-
-      setAlerts(
-        alertsRes.status === "fulfilled" && Array.isArray(alertsRes.value.data)
-          ? alertsRes.value.data
-          : []
-      );
-
-      if (staffList.length && !selectedStaffId) {
-        setSelectedStaffId(staffList[0].id);
-      }
+      setResidents(residentRows);
+      setStaff(staffRows);
+      setSelectedResidentId("");
+      setSelectedStaffId("");
     } catch (err) {
       console.error(err);
-      showToast("error", "Unable to Load Compliance", "Please try again.");
+      setMessage("Could not load residents or staff.");
     } finally {
       setLoading(false);
     }
   }
 
-  async function loadChecklist(staffId) {
-    try {
-      setLoadingChecklist(true);
-      const res = await api.get(`/staff-compliance/checklist/${staffId}`);
-      setChecklist(res.data);
-    } catch (err) {
-      console.error(err);
-      setChecklist(null);
-      showToast("error", "Unable to Load Checklist", "Checklist not found.");
-    } finally {
-      setLoadingChecklist(false);
-    }
-  }
-
-  async function refreshStaffChecks() {
-    if (!selectedStaffId) {
-      showToast("error", "Select Staff", "Please select a staff member first.");
+  async function loadResidentChecklist(residentId = "") {
+    if (residentId) {
+      await loadChecklist({
+        path: DOMAINS.residents.checklistPath(residentId),
+        setter: setResidentChecklist,
+      });
       return;
     }
 
-    try {
-      await api.post(`/staff-compliance/generate/${selectedStaffId}`);
-      await Promise.all([loadPage(), loadChecklist(selectedStaffId)]);
-      showToast("success", "Compliance Refreshed", "Staff compliance checks updated.");
-    } catch (err) {
-      console.error(err);
-      showToast("error", "Refresh Failed", "Unable to refresh compliance checks.");
-    }
-  }
-
-  async function uploadEvidence(item, file) {
-    if (!file) return;
-
-    if (!item.record_group || !item.record_id) {
-      showToast(
-        "error",
-        "Source Record Missing",
-        "Create the record in Staff Detail before uploading evidence."
-      );
-      return;
-    }
-
-    try {
-      const data = new FormData();
-      data.append("evidence", file);
-
-      await api.post(
-        `/staff-compliance/${item.record_group}/${item.record_id}/evidence`,
-        data,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
-
-      await loadChecklist(selectedStaffId);
-      showToast("success", "Evidence Uploaded", "Compliance evidence saved.");
-    } catch (err) {
-      console.error(err);
-      showToast("error", "Upload Failed", "Unable to upload evidence.");
-    }
-  }
-
-  function openEvidence(item) {
-    if (!item.evidence_url) {
-      showToast("error", "No Evidence", "No evidence file is attached.");
-      return;
-    }
-
-    window.open(item.evidence_url, "_blank");
-  }
-
-  const selectedStaff = staff.find((s) => s.id === selectedStaffId);
-
-  const filteredItems = useMemo(() => {
-    const items = checklist?.items || [];
-
-    return items.filter((item) => {
-      const q = search.toLowerCase();
-
-      const matchesSearch =
-        !q ||
-        item.title?.toLowerCase().includes(q) ||
-        item.section?.toLowerCase().includes(q) ||
-        item.status?.toLowerCase().includes(q);
-
-      const matchesSection =
-        sectionFilter === "ALL" || item.section === sectionFilter;
-
-      return matchesSearch && matchesSection;
+    await loadMultipleChecklists({
+      rows: residents,
+      pathBuilder: DOMAINS.residents.checklistPath,
+      setter: setResidentChecklist,
+      domainLabel: "Residents",
+      idField: "resident_id",
+      nameField: "resident_name",
     });
-  }, [checklist, search, sectionFilter]);
+  }
 
-  const metrics = useMemo(() => {
-    const total = checklist?.total || 0;
-    const completed = checklist?.completed || 0;
-    const score = checklist?.score || 0;
+  async function loadStaffChecklist(staffId = "") {
+    if (staffId) {
+      await loadChecklist({
+        path: DOMAINS.staff.checklistPath(staffId),
+        setter: setStaffChecklist,
+      });
+      return;
+    }
 
-    const missing = filteredItems.filter(
-      (i) => i.status === "MISSING" || i.status === "MISSING_EVIDENCE"
-    ).length;
+    await loadMultipleChecklists({
+      rows: staff,
+      pathBuilder: DOMAINS.staff.checklistPath,
+      setter: setStaffChecklist,
+      domainLabel: "Staff",
+      idField: "staff_id",
+      nameField: "staff_name",
+    });
+  }
 
-    const expired = filteredItems.filter((i) => i.status === "EXPIRED").length;
+  async function loadFacilityChecklist() {
+    await loadChecklist({ path: DOMAINS.facility.checklistPath(), setter: setFacilityChecklist });
+  }
 
-    return { total, completed, score, missing, expired };
-  }, [checklist, filteredItems]);
+  async function loadChecklist({ path, setter }) {
+    try {
+      setChecklistLoading(true);
+      const res = await api.get(path, { params: { _ts: Date.now() } });
+      setter(normalizeChecklist(res.data));
+    } catch (err) {
+      console.error(err);
+      setter(null);
+      setMessage(`Checklist route not available: ${path}`);
+    } finally {
+      setChecklistLoading(false);
+    }
+  }
+
+  async function loadMultipleChecklists({ rows, pathBuilder, setter, domainLabel, idField, nameField }) {
+    if (!rows.length) {
+      setter({
+        score: 0,
+        completed: 0,
+        total: 0,
+        items: [],
+        sections: [],
+      });
+      return;
+    }
+
+    try {
+      setChecklistLoading(true);
+      const responses = await Promise.allSettled(
+        rows
+          .map((row) => ({ row, entityId: getEntityId(row) }))
+          .filter(({ entityId }) => entityId)
+          .map(({ row, entityId }) =>
+            api
+              .get(pathBuilder(entityId), { params: { _ts: Date.now() } })
+              .then((res) => ({ row, entityId, data: normalizeChecklist(res.data) }))
+          )
+      );
+
+      const checklists = responses
+        .filter((result) => result.status === "fulfilled" && result.value?.data)
+        .map((result) => result.value);
+
+      const items = checklists.flatMap(({ row, entityId: rowEntityId, data }) => {
+        const entityId = data?.[idField] || rowEntityId || getEntityId(row);
+        const entityName = data?.[nameField] || displayName(row, domainLabel);
+        return (data.items || flattenSections(data.sections || [])).map((item) => ({
+          ...item,
+          entity_id: entityId,
+          entity_name: entityName,
+          section: entityName,
+          source_label: item.source_label || `${entityName} · ${item.source || "Source page"}`,
+        }));
+      });
+
+      setter({
+        label: `All ${domainLabel}`,
+        score: getChecklistStats({ items }).score,
+        completed: getChecklistStats({ items }).compliant,
+        total: items.length,
+        items,
+        sections: groupItems(items),
+      });
+    } catch (err) {
+      console.error(err);
+      setter(null);
+      setMessage(`Could not load ${domainLabel.toLowerCase()} compliance checklists.`);
+    } finally {
+      setChecklistLoading(false);
+    }
+  }
+
+  const currentChecklist = useMemo(() => {
+    if (activeTab === "residents") return residentChecklist;
+    if (activeTab === "staff") return staffChecklist;
+    return facilityChecklist;
+  }, [activeTab, residentChecklist, staffChecklist, facilityChecklist]);
+
+  const stats = useMemo(() => getChecklistStats(currentChecklist), [currentChecklist]);
+  const overallScore = stats.score;
+  const overallStatus = getStatus(overallScore, stats.missing);
+
+  async function refreshActiveChecklist() {
+    if (activeTab === "residents") return loadResidentChecklist(selectedResidentId);
+    if (activeTab === "staff") return loadStaffChecklist(selectedStaffId);
+    if (activeTab === "facility") return loadFacilityChecklist();
+  }
+
+  useEffect(() => {
+    const handleFocusRefresh = () => {
+      refreshActiveChecklist();
+    };
+
+    const handleVisibilityRefresh = () => {
+      if (!document.hidden) refreshActiveChecklist();
+    };
+
+    window.addEventListener("focus", handleFocusRefresh);
+    document.addEventListener("visibilitychange", handleVisibilityRefresh);
+
+    return () => {
+      window.removeEventListener("focus", handleFocusRefresh);
+      document.removeEventListener("visibilitychange", handleVisibilityRefresh);
+    };
+  }, [activeTab, selectedResidentId, selectedStaffId, residents.length, staff.length]);
+
+  async function saveComment() {
+    if (!selectedItem) return;
+    try {
+      const payload = {
+        item_key: selectedItem.key,
+        comment,
+        entity_type: activeTab === "residents" ? "resident" : activeTab === "staff" ? "staff" : "facility",
+        entity_id: selectedItem.entity_id || selectedResidentId || selectedStaffId || null,
+        source: selectedItem.source || null,
+        document_id: selectedItem.document_id || null,
+      };
+
+      const endpoint =
+        activeTab === "residents"
+          ? "/resident-compliance/comments"
+          : activeTab === "staff"
+          ? "/staff-compliance/comments"
+          : "/facility-compliance/comments";
+
+      await api.post(endpoint, payload);
+      setMessage("Comment saved.");
+      setSelectedItem(null);
+      setComment("");
+      if (activeTab === "residents") loadResidentChecklist(selectedResidentId);
+      if (activeTab === "staff") loadStaffChecklist(selectedStaffId);
+      if (activeTab === "facility") loadFacilityChecklist();
+    } catch (err) {
+      console.error(err);
+      setMessage("Comment route not available yet. Add the comments route or save comments on the source document.");
+    }
+  }
+
+  if (loading) return <div className="premium-compliance-page">Loading compliance...</div>;
 
   return (
-    <div className="compliance-page premium-compliance-page">
-      {toast && (
-        <div className={`premium-toast ${toast.type}`}>
-          <div className="premium-toast-icon">
-            {toast.type === "error" ? "!" : "✓"}
-          </div>
-          <div>
-            <strong>{toast.title}</strong>
-            <p>{toast.message}</p>
-          </div>
-          <button type="button" onClick={() => setToast(null)}>
-            ×
+    <div className="premium-compliance-page">
+      <section className="compliance-hero">
+        <div>
+          <p className="eyebrow">Source-of-Truth Compliance</p>
+          <h1>Compliance Center</h1>
+          <p>
+            This page mirrors resident, staff, and facility detail records. Evidence documents, certificates, and signed disclosures mark items compliant. Items without evidence stay missing for inspection readiness.
+          </p>
+        </div>
+        <div className={`hero-score ${overallStatus.toLowerCase().replace(/\s+/g, "-")}`} style={{ "--score": overallScore }}>
+          <strong>{overallScore}%</strong>
+          <span>{overallStatus}</span>
+        </div>
+      </section>
+
+      {message && <div className="message-bar">{message}</div>}
+
+      <section className="kpi-grid">
+        <KpiCard title="Compliant" value={stats.compliant} icon={CheckCircle2} tone="success" />
+        <KpiCard title="Missing Source" value={stats.missing} icon={ShieldAlert} tone="danger" />
+        <KpiCard title="Needs Evidence" value={stats.missingEvidence} icon={AlertTriangle} tone="warning" />
+        <KpiCard title="Required Items" value={stats.total} icon={ClipboardCheck} tone="neutral" />
+      </section>
+
+      <section className="compliance-shell">
+        <div className="tabs-row">
+          {Object.entries(DOMAINS).map(([key, config]) => {
+            const Icon = config.icon;
+            return (
+              <button
+                key={key}
+                className={`tab-button ${activeTab === key ? "active" : ""}`}
+                type="button"
+                onClick={() => setActiveTab(key)}
+              >
+                <Icon size={18} />
+                {config.plural}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="filter-row">
+          {activeTab === "residents" && (
+            <select value={selectedResidentId} onChange={(e) => setSelectedResidentId(e.target.value)}>
+              <option value="">All Residents</option>
+              {residents.length === 0 && <option value="" disabled>No residents found</option>}
+              {residents.map((resident) => (
+                <option key={resident.id} value={resident.id}>{displayName(resident, "Resident")}</option>
+              ))}
+            </select>
+          )}
+
+          {activeTab === "staff" && (
+            <select value={selectedStaffId} onChange={(e) => setSelectedStaffId(e.target.value)}>
+              <option value="">All Staff</option>
+              {staff.length === 0 && <option value="" disabled>No staff found</option>}
+              {staff.map((person) => (
+                <option key={person.id} value={person.id}>{displayName(person, "Staff")}</option>
+              ))}
+            </select>
+          )}
+
+          <button className="secondary-button" type="button" onClick={refreshActiveChecklist}>
+            <RefreshCw size={16} /> Refresh Source Check
           </button>
+        </div>
+
+        {checklistLoading ? (
+          <div className="empty-state">Checking source records...</div>
+        ) : !currentChecklist ? (
+          <div className="empty-state">
+            <ShieldAlert size={34} />
+            <h3>No checklist returned</h3>
+            <p>Add the checklist route for this tab so the Compliance Page can mirror source documents.</p>
+          </div>
+        ) : (
+          <ChecklistView
+            checklist={currentChecklist}
+            activeTab={activeTab}
+            detailPath={DOMAINS[activeTab].detailPath}
+            onSelect={(item) => {
+              setSelectedItem(item);
+              setComment("");
+            }}
+          />
+        )}
+      </section>
+
+      {selectedItem && (
+        <div className="modal-backdrop" onClick={() => setSelectedItem(null)}>
+          <div className="audit-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Read Only Audit View</p>
+                <h2>{selectedItem.title}</h2>
+              </div>
+              <button type="button" onClick={() => setSelectedItem(null)}>×</button>
+            </div>
+
+            <div className="source-summary evidence-summary">
+              <StatusChip item={selectedItem} status={selectedItem.status} />
+              <p><b>Source:</b> {selectedItem.source_label || selectedItem.source || "Source record"}</p>
+              <div className="modal-evidence-line">
+                <b>Evidence:</b>
+                {hasEvidence(selectedItem) ? (
+                  <EvidenceFileLink item={selectedItem} />
+                ) : (
+                  <span>Missing evidence document</span>
+                )}
+              </div>
+              {selectedItem.expiration_date && <p><b>Expires:</b> {formatDate(selectedItem.expiration_date)}</p>}
+            </div>
+
+            {isCompliantItem(selectedItem) ? (
+              <div className="readonly-box">
+                <ShieldCheck size={24} />
+                <div>
+                  <h3>Evidence ready for inspection</h3>
+                  <p>This item has an evidence document. Compliance can view the certificate/file and add comments only. Uploads and edits remain on the source detail page.</p>
+                </div>
+              </div>
+            ) : hasSourceRecord(selectedItem) ? (
+              <div className="evidence-required-box">
+                <AlertTriangle size={24} />
+                <div>
+                  <h3>Record exists, but evidence is missing</h3>
+                  <p>The staff/resident/facility record exists, but inspection evidence is not attached. Add the certificate, signed form, or supporting file on the source detail page.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="missing-box">
+                <ShieldAlert size={24} />
+                <div>
+                  <h3>Source record and evidence missing</h3>
+                  <p>Create/upload this item from the resident, staff, or facility detail page. Once evidence exists, it will automatically show compliant here.</p>
+                </div>
+              </div>
+            )}
+
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Add compliance review comment..."
+            />
+
+            <div className="modal-actions">
+              {getEvidenceUrl(selectedItem) && (
+                <>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => openEvidenceFile(selectedItem)}
+                  >
+                    <Eye size={16} /> View Evidence
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => openEvidenceFile(selectedItem, true)}
+                  >
+                    <Download size={16} /> Download
+                  </button>
+                </>
+              )}
+              <a className="secondary-button" href={getDetailUrl(activeTab, selectedResidentId, selectedStaffId, selectedItem)}>
+                <FileText size={16} /> {hasEvidence(selectedItem) ? "Open Source Page" : "Add Evidence on Source Page"}
+              </a>
+              <button className="primary-button" type="button" onClick={saveComment}>
+                <MessageSquare size={16} /> Save Comment
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      <section className="compliance-premium-hero">
-        <div>
-          <p className="dashboard-eyebrow">
-            <ShieldCheck size={15} />
-            Compliance Center
-          </p>
-          <h1>Inspection Readiness</h1>
-          <p>
-            Review staff compliance evidence, missing items, expiring
-            credentials, training gaps, and BHRF inspection readiness.
-          </p>
-        </div>
+      <ComplianceStyles />
+    </div>
+  );
+}
 
-        <button type="button" onClick={refreshStaffChecks}>
-          <RefreshCw size={17} />
-          Refresh Checks
-        </button>
-      </section>
+function ChecklistView({ checklist, activeTab, detailPath, onSelect }) {
+  const sections = checklist.sections || groupItems(checklist.items || []);
+  const entityId = checklist.resident_id || checklist.staff_id || checklist.facility_id || "";
 
-      <section className="compliance-metric-grid">
-        <MetricCard
-          title="Compliance Score"
-          value={`${metrics.score}%`}
-          helper="Selected staff checklist"
-          icon={<ShieldCheck />}
-          tone={metrics.score >= 85 ? "green" : metrics.score >= 60 ? "amber" : "red"}
-        />
-
-        <MetricCard
-          title="Completed"
-          value={`${metrics.completed}/${metrics.total}`}
-          helper="Evidence complete"
-          icon={<CheckCircle2 />}
-          tone="blue"
-        />
-
-        <MetricCard
-          title="Missing Evidence"
-          value={metrics.missing}
-          helper="Needs upload or source record"
-          icon={<UploadCloud />}
-          tone={metrics.missing ? "amber" : "green"}
-        />
-
-        <MetricCard
-          title="Expired"
-          value={metrics.expired}
-          helper="Expired compliance records"
-          icon={<ShieldAlert />}
-          tone={metrics.expired ? "red" : "green"}
-        />
-      </section>
-
-      <section className="compliance-dashboard-strip">
-        <MiniCard
-          label="Total Staff"
-          value={dashboard?.staff?.total ?? staff.length}
-          icon={<UsersRound />}
-        />
-        <MiniCard
-          label="Open Alerts"
-          value={dashboard?.alerts?.total_open ?? alerts.length}
-          icon={<AlertTriangle />}
-        />
-        <MiniCard
-          label="Critical"
-          value={dashboard?.alerts?.critical ?? 0}
-          icon={<ShieldAlert />}
-        />
-        <MiniCard
-          label="Training Rate"
-          value={`${dashboard?.training?.completion_rate ?? 0}%`}
-          icon={<ClipboardCheck />}
-        />
-      </section>
-
-      <section className="compliance-toolbar-card">
-        <div className="compliance-staff-picker">
-          <label>Staff Member</label>
-          <select
-            value={selectedStaffId}
-            onChange={(e) => setSelectedStaffId(e.target.value)}
-          >
-            <option value="">Select staff</option>
-            {staff.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.full_name} — {member.position || "Staff"}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="compliance-search">
-          <Search size={17} />
-          <input
-            placeholder="Search compliance item..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        <select
-          value={sectionFilter}
-          onChange={(e) => setSectionFilter(e.target.value)}
-        >
-          {complianceSections.map((section) => (
-            <option key={section} value={section}>
-              {section === "ALL" ? "All Sections" : section}
-            </option>
-          ))}
-        </select>
-      </section>
-
-      <section className="compliance-main-layout">
-        <div className="compliance-checklist-panel">
-          <div className="panel-header">
+  return (
+    <div className="checklist-sections">
+      {sections.map((section) => (
+        <div key={section.title} className="section-card">
+          <div className="section-header">
             <div>
-              <p className="dashboard-eyebrow">Staff Checklist</p>
-              <h3>
-                {selectedStaff?.full_name || "Select Staff"}
-              </h3>
-              <span className="empty-text">
-                {filteredItems.length} compliance item(s)
-              </span>
+              <p className="eyebrow">{activeTab}</p>
+              <h3>{section.title}</h3>
             </div>
+            <span>{section.items?.length || 0} items</span>
           </div>
 
-          {loading || loadingChecklist ? (
-            <div className="table-empty">Loading compliance checklist...</div>
-          ) : !checklist ? (
-            <div className="empty-state">
-              <ShieldCheck size={36} />
-              <p>Select a staff member to view compliance checklist.</p>
-            </div>
-          ) : filteredItems.length === 0 ? (
-            <div className="empty-state">
-              <FileCheck2 size={36} />
-              <p>No checklist items found.</p>
-            </div>
-          ) : (
-            <div className="compliance-item-grid">
-              {filteredItems.map((item) => (
-                <ComplianceItemCard
-                  key={item.key}
-                  item={item}
-                  onView={() => openEvidence(item)}
-                  onUpload={(file) => uploadEvidence(item, file)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="compliance-alert-panel">
-          <div className="panel-header">
-            <div>
-              <p className="dashboard-eyebrow">Open Alerts</p>
-              <h3>Staff Alerts</h3>
-            </div>
-            <AlertTriangle size={20} />
-          </div>
-
-          {alerts.length === 0 ? (
-            <p className="empty-text">No open staff alerts.</p>
-          ) : (
-            <div className="compliance-alert-list">
-              {alerts.slice(0, 12).map((alert) => (
-                <div key={alert.id} className="compliance-alert-row">
-                  <span
-                    className={`severity-badge ${`${alert.severity || "warning"}`.toLowerCase()}`}
-                  >
-                    {alert.severity || "WARNING"}
-                  </span>
-                  <strong>{alert.title || alert.alert_type}</strong>
-                  <p>{alert.description || "—"}</p>
+          <div className="item-list">
+            {(section.items || []).map((item) => (
+              <button key={item.key || item.title} className={`source-item ${itemStatusClass(item)}`} type="button" onClick={() => onSelect({ ...item, entity_id: item.entity_id || entityId })}>
+                <div className="source-left">
+                  {isCompliantItem(item) ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+                  <div>
+                    <strong>{item.title}</strong>
+                    <p>{item.source_label || item.source || (isCompliantItem(item) ? "Evidence found on source page" : "Evidence missing from source page")}</p>
+                    {!isCompliantItem(item) && hasSourceRecord(item) && <small className="evidence-note">Record found · evidence document required</small>}
+                    {isCompliantItem(item) && (
+                      <EvidenceFileLink item={item} compact onClick={(event) => event.stopPropagation()} />
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="source-actions">
+                  <StatusChip item={item} status={item.status} />
+                  {isCompliantItem(item) ? <Eye size={16} /> : <span className="missing-link">{hasSourceRecord(item) ? "Add evidence" : "Fix on detail page"}</span>}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
-      </section>
+      ))}
     </div>
   );
 }
 
-function ComplianceItemCard({ item, onView, onUpload }) {
-  const statusClass = `${item.status || "MISSING"}`.toLowerCase();
-
+function KpiCard({ title, value, icon: Icon, tone }) {
   return (
-    <div className={`compliance-item-card ${statusClass}`}>
-      <div className="compliance-item-top">
-        <div className="compliance-item-icon">
-          {item.status === "COMPLIANT" ? (
-            <CheckCircle2 size={22} />
-          ) : (
-            <AlertTriangle size={22} />
-          )}
-        </div>
-
-        <span className={`compliance-pill ${statusClass}`}>
-          {formatType(item.status)}
-        </span>
-      </div>
-
-      <h4>{item.title}</h4>
-      <p>{item.source_label || item.section}</p>
-
-      <div className="compliance-item-meta">
-        <span>Section: {item.section}</span>
-        <span>Source: {item.source_tab || "Staff Detail"}</span>
-        <span>Evidence: {formatType(item.evidence_status)}</span>
-      </div>
-
-      <div className="compliance-item-actions">
-        {item.has_evidence ? (
-          <button type="button" onClick={onView}>
-            <Eye size={15} />
-            View Evidence
-          </button>
-        ) : item.record_id ? (
-          <label className="upload-evidence-btn">
-            <UploadCloud size={15} />
-            Upload Evidence
-            <input
-              type="file"
-              hidden
-              onChange={(e) => onUpload(e.target.files?.[0])}
-            />
-          </label>
-        ) : (
-          <span className="source-needed">
-            Create source record in Staff Detail
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({ title, value, helper, icon, tone }) {
-  return (
-    <div className={`compliance-premium-card ${tone}`}>
-      <div className="compliance-premium-icon">{icon}</div>
+    <div className={`kpi-card ${tone}`}>
+      <span><Icon size={22} /></span>
       <div>
         <p>{title}</p>
         <h2>{value}</h2>
-        <span>{helper}</span>
       </div>
     </div>
   );
 }
 
-function MiniCard({ label, value, icon }) {
+function StatusChip({ status, item }) {
+  const normalized = item ? normalizeItemStatus(item) : normalizeStatus(status);
+  return <span className={`status-chip ${item ? itemStatusClass(item) : statusClass(status)}`}>{normalized}</span>;
+}
+
+function EvidenceFileLink({ item, compact = false, onClick }) {
+  const url = getEvidenceUrl(item);
+  const label = evidenceLabel(item);
+
+  if (!url) {
+    return (
+      <span className={`compliance-file-link missing ${compact ? "compact" : ""}`}>
+        <FileText size={14} />
+        {label || "Evidence missing"}
+      </span>
+    );
+  }
+
   return (
-    <div className="compliance-mini-card">
-      <span>{icon}</span>
-      <div>
-        <strong>{value}</strong>
-        <p>{label}</p>
-      </div>
-    </div>
+    <button
+      type="button"
+      className={`compliance-file-link ${compact ? "compact" : ""}`}
+      onClick={(event) => {
+        if (onClick) onClick(event);
+        event.stopPropagation();
+        openEvidenceFile(item);
+      }}
+      title="Open evidence file"
+    >
+      <FileText size={14} />
+      {label}
+    </button>
   );
 }
 
-function formatType(value) {
-  return `${value || "—"}`.replaceAll("_", " ");
+async function fetchFirstAvailable(paths) {
+  let lastError;
+  for (const path of paths) {
+    try {
+      return await api.get(path);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
+
+function normalizeCollection(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.records)) return payload.records;
+  if (Array.isArray(payload?.residents)) return payload.residents;
+  if (Array.isArray(payload?.staff)) return payload.staff;
+  return [];
+}
+
+function normalizeChecklist(payload) {
+  if (!payload) return null;
+  if (payload.checklist) return normalizeChecklist(payload.checklist);
+
+  const rawItems = payload.items || flattenSections(payload.sections || []);
+  const items = rawItems.map(normalizeEvidenceItem);
+
+  const sections = payload.sections
+    ? payload.sections.map((section) => ({
+        ...section,
+        items: (section.items || []).map(normalizeEvidenceItem),
+      }))
+    : groupItems(items);
+
+  return {
+    ...payload,
+    items,
+    sections,
+  };
+}
+
+function flattenSections(sections) {
+  return sections.flatMap((section) => (section.items || []).map((item) => ({ ...item, section: section.title })));
+}
+
+function groupItems(items) {
+  const map = new Map();
+  items.forEach((item) => {
+    const title = item.section || item.category || item.area || "Compliance Items";
+    if (!map.has(title)) map.set(title, []);
+    map.get(title).push(item);
+  });
+  return Array.from(map.entries()).map(([title, sectionItems]) => ({ title, items: sectionItems }));
+}
+
+function getChecklistStats(checklist) {
+  const items = checklist?.items || flattenSections(checklist?.sections || []);
+  const total = items.length;
+  const compliant = items.filter((item) => isCompliantItem(item)).length;
+  const missingEvidence = items.filter((item) => !isCompliantItem(item) && hasSourceRecord(item)).length;
+  const missing = items.filter((item) => !isCompliantItem(item) && !hasSourceRecord(item)).length;
+  const review = Math.max(total - compliant - missing - missingEvidence, 0);
+  const score = total ? Math.round((compliant / total) * 100) : 0;
+  return { total, compliant, missing, missingEvidence, review, score };
+}
+
+function isCompliant(status) {
+  return ["COMPLIANT", "COMPLETE", "COMPLETED", "SIGNED", "VERIFIED", "FOUND", "ACTIVE"].includes(String(status || "").toUpperCase());
+}
+
+function isCompliantItem(item) {
+  if (!item) return false;
+
+  // IMPORTANT: the Compliance Page must reflect the same evidence displayed on Staff Detail.
+  // Some older checklist responses may still return status=MISSING_EVIDENCE or has_evidence=false
+  // even after Staff Detail has saved an evidence filename/url. Evidence presence wins.
+  const s = String(item.status || "").toUpperCase();
+  const evidenceStatus = String(item.evidence_status || "").toUpperCase();
+
+  if (["EXPIRED", "OVERDUE", "DEFICIENT", "NON_COMPLIANT"].includes(s)) return false;
+  if (["EXPIRED", "OVERDUE"].includes(evidenceStatus)) return false;
+
+  return hasEvidence(item);
+}
+
+function hasEvidence(item) {
+  if (!item) return false;
+
+  // Do not trust stale has_evidence=false from the backend when actual file fields exist.
+  // Any filename, URL, document id, or certificate id means the evidence exists.
+  return Boolean(
+    item.evidence_url ||
+    item.document_url ||
+    item.file_url ||
+    item.certificate_url ||
+    item.evidence_filename ||
+    item.document_filename ||
+    item.file_name ||
+    item.certificate_filename ||
+    item.document_id ||
+    item.certificate_document_id ||
+    item.has_evidence === true
+  );
+}
+
+function hasSourceRecord(item) {
+  if (!item) return false;
+  return Boolean(
+    item.record_id ||
+    item.source_record_id ||
+    item.document_id ||
+    item.certificate_document_id ||
+    item.has_record === true ||
+    item.record_exists === true
+  );
+}
+
+function itemStatusClass(item) {
+  if (isCompliantItem(item)) return "compliant";
+  if (hasSourceRecord(item)) return "review";
+  return "missing";
+}
+
+function statusClass(status) {
+  const s = String(status || "MISSING").toUpperCase();
+  if (isCompliant(s)) return "compliant";
+  if (["MISSING", "OVERDUE", "EXPIRED", "DEFICIENT", "NON_COMPLIANT"].includes(s)) return "missing";
+  return "review";
+}
+
+function normalizeItemStatus(item) {
+  if (isCompliantItem(item)) return "COMPLIANT";
+  if (hasSourceRecord(item)) return "NEEDS EVIDENCE";
+  return normalizeStatus(item?.status || "MISSING");
+}
+
+function normalizeStatus(status) {
+  const s = String(status || "MISSING").replace(/_/g, " ").toUpperCase();
+  return s;
+}
+
+function getEvidenceUrl(item) {
+  if (!item) return "";
+
+  const rawUrl =
+    item.evidence_url ||
+    item.document_url ||
+    item.file_url ||
+    item.certificate_url ||
+    "";
+
+  if (rawUrl && !isBareFilename(rawUrl)) return resolveApiFileUrl(rawUrl);
+
+  const recordGroup = item.record_group;
+  const recordId = item.record_id || item.source_record_id;
+
+  if (recordGroup && recordId) {
+    return resolveApiFileUrl(`/staff-compliance/${recordGroup}/${recordId}/evidence/view`);
+  }
+
+  if (item.document_id) return resolveApiFileUrl(`/documents/${item.document_id}`);
+  if (item.certificate_document_id) return resolveApiFileUrl(`/documents/${item.certificate_document_id}`);
+
+  return "";
+}
+
+function isBareFilename(value = "") {
+  const text = String(value || "").trim();
+  return Boolean(text && !text.startsWith("http") && !text.startsWith("/") && !text.includes("/"));
+}
+
+function resolveApiFileUrl(path = "") {
+  if (!path) return "";
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+
+  const base = api.defaults?.baseURL || "";
+
+  if (path.startsWith("/api/")) {
+    if (base.startsWith("http")) {
+      try {
+        return `${new URL(base).origin}${path}`;
+      } catch {
+        return path;
+      }
+    }
+    return path;
+  }
+
+  if (path.startsWith("/")) {
+    if (base.startsWith("http")) {
+      try {
+        const baseUrl = new URL(base);
+        if (baseUrl.pathname.endsWith("/api/v1")) return `${base}${path}`;
+        return `${baseUrl.origin}${path}`;
+      } catch {
+        return `${base}${path}`;
+      }
+    }
+    return `${base}${path}`.replace(/\/\/+/g, "/");
+  }
+
+  if (base) return `${base.replace(/\/$/, "")}/${path}`;
+  return path;
+}
+
+async function openEvidenceFile(item, download = false) {
+  try {
+    const url = getEvidenceUrl(item);
+
+    if (!url) {
+      alert("No evidence file is attached yet.");
+      return;
+    }
+
+    let requestUrl = url;
+    const baseURL = api.defaults?.baseURL || "";
+
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      const evidenceUrl = new URL(url);
+      const apiUrl = baseURL ? new URL(baseURL) : null;
+
+      if (!apiUrl || evidenceUrl.origin !== apiUrl.origin) {
+        window.open(url, "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      requestUrl = evidenceUrl.pathname + evidenceUrl.search;
+    }
+
+    requestUrl = requestUrl.replace(/^\/api\/v1/, "");
+
+    const res = await api.get(requestUrl, {
+      responseType: "blob",
+      params: { _ts: Date.now() },
+    });
+
+    const contentType = res.headers?.["content-type"] || "application/octet-stream";
+    const blob = new Blob([res.data], { type: contentType });
+    const blobUrl = window.URL.createObjectURL(blob);
+
+    if (download) {
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = evidenceLabel(item) || "evidence";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(blobUrl);
+      return;
+    }
+
+    window.open(blobUrl, "_blank", "noopener,noreferrer");
+  } catch (err) {
+    console.error(err);
+    alert("Could not open evidence file. Refresh the checklist or re-upload the evidence if this is an older record.");
+  }
+}
+
+function normalizeEvidenceItem(item = {}) {
+  const withUrl = {
+    ...item,
+    evidence_url: getEvidenceUrl(item) || item.evidence_url || item.document_url || item.file_url || "",
+  };
+
+  if (hasEvidence(withUrl)) {
+    return {
+      ...withUrl,
+      status: "COMPLIANT",
+      has_evidence: true,
+      evidence_status: withUrl.evidence_status || "EVIDENCE_ATTACHED",
+    };
+  }
+
+  if (hasSourceRecord(withUrl)) {
+    return {
+      ...withUrl,
+      status: withUrl.status || "MISSING_EVIDENCE",
+      evidence_status: withUrl.evidence_status || "RECORD_FOUND_EVIDENCE_REQUIRED",
+    };
+  }
+
+  return withUrl;
+}
+
+function evidenceLabel(item) {
+  return (
+    item?.evidence_filename ||
+    item?.document_filename ||
+    item?.file_name ||
+    item?.certificate_filename ||
+    (item?.document_id ? `Document ${item.document_id}` : "Evidence available")
+  );
+}
+
+function formatDate(value) {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function getStatus(score, missing) {
+  if (missing > 0 || score < 75) return "High Risk";
+  if (score < 95) return "Needs Review";
+  return "Survey Ready";
+}
+
+function getEntityId(row = {}) {
+  return row.id || row.staff_id || row.resident_id || row.profile_id || row.uuid || "";
+}
+
+function displayName(row, fallback) {
+  return row.full_name || row.name || `${row.first_name || ""} ${row.last_name || ""}`.trim() || row.email || fallback;
+}
+
+function getDetailUrl(activeTab, residentId, staffId, selectedItem = null) {
+  if (activeTab === "residents") return `/residents/${selectedItem?.entity_id || residentId}`;
+  if (activeTab === "staff") return `/staff/${selectedItem?.entity_id || staffId}`;
+  return "/facility-compliance";
+}
+
+function ComplianceStyles() {
+  return (
+    <style>{`
+      .premium-compliance-page {
+        min-height: 100vh;
+        padding: 30px;
+        color: #0f172a;
+        background:
+          radial-gradient(circle at 8% 0%, rgba(37, 99, 235, 0.18), transparent 34%),
+          radial-gradient(circle at 92% 10%, rgba(20, 184, 166, 0.18), transparent 30%),
+          radial-gradient(circle at 55% 100%, rgba(99, 102, 241, 0.12), transparent 38%),
+          linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+      }
+
+      .compliance-hero {
+        position: relative;
+        overflow: hidden;
+        border-radius: 34px;
+        padding: 36px;
+        color: #ffffff;
+        display: flex;
+        align-items: stretch;
+        justify-content: space-between;
+        gap: 28px;
+        background:
+          linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(29, 78, 216, 0.94) 55%, rgba(15, 118, 110, 0.94));
+        box-shadow: 0 30px 90px rgba(15, 23, 42, 0.22);
+        border: 1px solid rgba(255, 255, 255, 0.24);
+      }
+
+      .compliance-hero:before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(90deg, rgba(255,255,255,0.12) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(255,255,255,0.10) 1px, transparent 1px);
+        background-size: 46px 46px;
+        opacity: 0.14;
+        pointer-events: none;
+      }
+
+      .compliance-hero:after {
+        content: "";
+        position: absolute;
+        width: 420px;
+        height: 420px;
+        right: -150px;
+        bottom: -190px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.16);
+        filter: blur(1px);
+      }
+
+      .compliance-hero > div {
+        position: relative;
+        z-index: 1;
+      }
+
+      .compliance-hero h1 {
+        font-size: clamp(2.4rem, 5vw, 4.4rem);
+        line-height: 0.94;
+        letter-spacing: -0.07em;
+        margin: 6px 0 14px;
+        max-width: 760px;
+      }
+
+      .compliance-hero p {
+        max-width: 820px;
+        color: rgba(255,255,255,.82);
+        line-height: 1.75;
+        margin: 0;
+        font-size: 1.03rem;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: .72rem;
+        text-transform: uppercase;
+        letter-spacing: .14em;
+        font-weight: 950;
+        color: #bfdbfe;
+        margin: 0 0 6px;
+      }
+
+      .hero-score {
+        min-width: 220px;
+        border-radius: 30px;
+        background: rgba(255,255,255,.14);
+        border: 1px solid rgba(255,255,255,.28);
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        text-align: center;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
+        backdrop-filter: blur(18px);
+      }
+
+      .hero-score strong {
+        width: 138px;
+        height: 138px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        font-size: 2.45rem;
+        letter-spacing: -.06em;
+        background:
+          radial-gradient(circle at center, rgba(15,23,42,.76) 0 58%, transparent 59%),
+          conic-gradient(#ffffff calc(var(--score, 0) * 1%), rgba(255,255,255,.20) 0);
+      }
+
+      .hero-score span {
+        margin-top: 14px;
+        font-weight: 950;
+        text-transform: uppercase;
+        font-size: .78rem;
+        letter-spacing: .1em;
+      }
+
+      .hero-score.high-risk span { color: #fecaca; }
+      .hero-score.needs-review span { color: #fde68a; }
+      .hero-score.survey-ready span { color: #bbf7d0; }
+
+      .message-bar {
+        margin-top: 16px;
+        padding: 13px 16px;
+        border-radius: 18px;
+        background: rgba(255, 251, 235, 0.92);
+        border: 1px solid #fde68a;
+        color: #92400e;
+        font-weight: 850;
+        box-shadow: 0 14px 34px rgba(146, 64, 14, 0.08);
+      }
+
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
+        margin: 20px 0;
+      }
+
+      .kpi-card {
+        position: relative;
+        overflow: hidden;
+        border-radius: 26px;
+        padding: 20px;
+        background: rgba(255,255,255,.88);
+        border: 1px solid rgba(226,232,240,.95);
+        box-shadow: 0 20px 55px rgba(15,23,42,.10);
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        backdrop-filter: blur(18px);
+      }
+
+      .kpi-card:after {
+        content: "";
+        position: absolute;
+        right: -30px;
+        top: -30px;
+        width: 88px;
+        height: 88px;
+        border-radius: 999px;
+        background: rgba(37,99,235,.08);
+      }
+
+      .kpi-card > span {
+        width: 50px;
+        height: 50px;
+        border-radius: 18px;
+        display: grid;
+        place-items: center;
+        background: #eff6ff;
+        color: #2563eb;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+        flex: 0 0 auto;
+      }
+
+      .kpi-card.success > span { background: #ecfdf5; color: #059669; }
+      .kpi-card.danger > span { background: #fef2f2; color: #dc2626; }
+      .kpi-card.warning > span { background: #fffbeb; color: #d97706; }
+      .kpi-card p,
+      .kpi-card h2 { margin: 0; }
+      .kpi-card p { font-weight: 900; color: #64748b; font-size: .86rem; }
+      .kpi-card h2 { margin-top: 4px; font-size: 2.08rem; letter-spacing: -.06em; }
+
+      .compliance-shell {
+        position: relative;
+        overflow: hidden;
+        background: rgba(255,255,255,.88);
+        border: 1px solid rgba(226,232,240,.95);
+        border-radius: 34px;
+        padding: 20px;
+        box-shadow: 0 30px 90px rgba(15,23,42,.12);
+        backdrop-filter: blur(18px);
+      }
+
+      .compliance-shell:before {
+        content: "";
+        position: absolute;
+        inset: 0 0 auto 0;
+        height: 5px;
+        background: linear-gradient(90deg, #1d4ed8, #14b8a6, #22c55e);
+      }
+
+      .tabs-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .tab-button {
+        border: 1px solid #dbeafe;
+        background: #f8fafc;
+        border-radius: 20px;
+        padding: 15px 17px;
+        font-weight: 950;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        cursor: pointer;
+        color: #334155;
+        transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+      }
+
+      .tab-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 28px rgba(15,23,42,.08);
+      }
+
+      .tab-button.active {
+        background: linear-gradient(135deg, #1d4ed8, #0f766e);
+        color: #ffffff;
+        border-color: transparent;
+        box-shadow: 0 18px 38px rgba(37, 99, 235, .24);
+      }
+
+      .filter-row {
+        display: flex;
+        gap: 12px;
+        margin: 18px 0;
+        align-items: center;
+        padding: 14px;
+        border-radius: 24px;
+        background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+        border: 1px solid #e2e8f0;
+      }
+
+      .filter-row select {
+        min-width: 320px;
+        border: 1px solid #cbd5e1;
+        border-radius: 16px;
+        padding: 13px 15px;
+        font-weight: 850;
+        background: #ffffff;
+        color: #0f172a;
+        outline: none;
+        box-shadow: 0 8px 22px rgba(15,23,42,.05);
+      }
+
+      .filter-row select:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 4px rgba(37,99,235,.12);
+      }
+
+      .primary-button,
+      .secondary-button {
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 16px;
+        font-weight: 950;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform .18s ease, box-shadow .18s ease;
+      }
+
+      .primary-button:hover,
+      .secondary-button:hover { transform: translateY(-1px); }
+      .primary-button { background: linear-gradient(135deg, #1d4ed8, #0f766e); color: #fff; box-shadow: 0 16px 32px rgba(37,99,235,.22); }
+      .secondary-button { background: #ffffff; color: #334155; border: 1px solid #e2e8f0; box-shadow: 0 10px 24px rgba(15,23,42,.06); }
+
+      .checklist-sections {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .section-card {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+        border-radius: 28px;
+        padding: 18px;
+        background:
+          radial-gradient(circle at top right, rgba(37,99,235,.08), transparent 34%),
+          #f8fafc;
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 14px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #e2e8f0;
+      }
+
+      .section-header h3 { margin: 0; font-size: 1.16rem; letter-spacing: -.03em; }
+      .section-header span {
+        height: fit-content;
+        border-radius: 999px;
+        padding: 7px 11px;
+        font-weight: 950;
+        color: #1d4ed8;
+        background: #eff6ff;
+        font-size: .78rem;
+      }
+
+      .item-list { display: grid; gap: 11px; }
+
+      .source-item {
+        width: 100%;
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+        padding: 14px;
+        background: rgba(255,255,255,.94);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        text-align: left;
+        cursor: pointer;
+        box-shadow: 0 10px 26px rgba(15,23,42,.05);
+        transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+      }
+
+      .source-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 18px 42px rgba(15,23,42,.10);
+        border-color: #bfdbfe;
+      }
+
+      .source-item.compliant { border-left: 5px solid #16a34a; }
+      .source-item.missing { border-left: 5px solid #dc2626; }
+      .source-item.review { border-left: 5px solid #d97706; }
+
+      .source-left { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+      .source-left svg {
+        width: 34px;
+        height: 34px;
+        padding: 8px;
+        border-radius: 13px;
+        background: #f1f5f9;
+        flex: 0 0 auto;
+      }
+      .source-left strong { display: block; color: #0f172a; letter-spacing: -.02em; }
+      .source-left p { margin: 4px 0 0; color: #64748b; font-size: .86rem; line-height: 1.35; }
+      .source-item.compliant .source-left svg { color: #16a34a; background: #ecfdf5; }
+      .source-item.missing .source-left svg { color: #dc2626; background: #fef2f2; }
+      .source-item.review .source-left svg { color: #d97706; background: #fffbeb; }
+      .source-actions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+
+      .status-chip {
+        border-radius: 999px;
+        padding: 7px 11px;
+        font-size: .71rem;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        white-space: nowrap;
+      }
+      .status-chip.compliant { background: #ecfdf5; color: #047857; border: 1px solid #bbf7d0; }
+      .status-chip.missing { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+      .status-chip.review { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+      .missing-link { font-size: .78rem; font-weight: 950; color: #b91c1c; }
+
+      .empty-state {
+        min-height: 260px;
+        border: 1px dashed #cbd5e1;
+        background:
+          radial-gradient(circle at center, rgba(37,99,235,.06), transparent 38%),
+          #f8fafc;
+        border-radius: 26px;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        color: #64748b;
+        padding: 26px;
+      }
+
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15,23,42,.58);
+        display: grid;
+        place-items: center;
+        z-index: 50;
+        padding: 18px;
+        backdrop-filter: blur(8px);
+      }
+
+      .audit-modal {
+        width: min(800px, 100%);
+        max-height: 90vh;
+        overflow: auto;
+        background: #ffffff;
+        border-radius: 32px;
+        padding: 24px;
+        box-shadow: 0 35px 95px rgba(15,23,42,.34);
+        border: 1px solid rgba(255,255,255,.82);
+      }
+
+      .modal-header { display: flex; justify-content: space-between; gap: 14px; }
+      .modal-header h2 { margin: 0; letter-spacing: -.04em; }
+      .modal-header button {
+        border: 0;
+        background: #f1f5f9;
+        width: 42px;
+        height: 42px;
+        border-radius: 999px;
+        font-size: 1.5rem;
+        cursor: pointer;
+      }
+
+      .source-summary {
+        display: grid;
+        gap: 9px;
+        margin: 16px 0;
+        padding: 16px;
+        border-radius: 20px;
+        background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+        border: 1px solid #e2e8f0;
+      }
+      .source-summary p { margin: 0; }
+
+      .readonly-box,
+      .missing-box,
+      .evidence-required-box {
+        display: flex;
+        gap: 13px;
+        border-radius: 20px;
+        padding: 16px;
+        margin-bottom: 14px;
+        border: 1px solid transparent;
+      }
+      .readonly-box { background: #ecfdf5; color: #065f46; border-color: #bbf7d0; }
+      .missing-box { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+      .evidence-required-box { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+      .readonly-box h3,
+      .missing-box h3,
+      .evidence-required-box h3,
+      .readonly-box p,
+      .missing-box p,
+      .evidence-required-box p { margin: 0; }
+      .readonly-box p,
+      .missing-box p,
+      .evidence-required-box p { margin-top: 4px; line-height: 1.5; }
+      .evidence-note { display:block; margin-top:4px; color:#b45309; font-weight:850; font-size:.78rem; }
+      .evidence-note.success { color:#047857; }
+      .evidence-summary { border-left: 5px solid #2563eb; }
+
+      .audit-modal textarea {
+        width: 100%;
+        min-height: 128px;
+        border: 1px solid #cbd5e1;
+        border-radius: 20px;
+        padding: 14px;
+        font: inherit;
+        resize: vertical;
+        outline: none;
+      }
+      .audit-modal textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
+
+      .compliance-file-link {
+        border: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #2563eb;
+        font-weight: 950;
+        text-decoration: none;
+        padding: 7px 10px;
+        border-radius: 12px;
+        background: rgba(37, 99, 235, 0.08);
+        border: 1px solid rgba(37, 99, 235, 0.14);
+        width: max-content;
+        max-width: 100%;
+        cursor: pointer;
+        transition: 0.18s ease;
+      }
+
+      .compliance-file-link:hover {
+        background: rgba(37, 99, 235, 0.14);
+        transform: translateY(-1px);
+      }
+
+      .compliance-file-link.compact {
+        margin-top: 6px;
+        font-size: 0.78rem;
+        padding: 5px 8px;
+      }
+
+      .compliance-file-link.missing {
+        color: #b91c1c;
+        background: #fef2f2;
+        border-color: #fecaca;
+        cursor: default;
+      }
+
+      .modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+
+      @media(max-width: 1100px) {
+        .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .checklist-sections { grid-template-columns: 1fr; }
+      }
+
+      @media(max-width: 820px) {
+        .premium-compliance-page { padding: 16px; }
+        .compliance-hero { flex-direction: column; padding: 26px; }
+        .tabs-row { grid-template-columns: 1fr; }
+        .filter-row { flex-direction: column; align-items: stretch; }
+        .filter-row select { min-width: 0; width: 100%; }
+        .source-item { align-items: flex-start; flex-direction: column; }
+        .source-actions { width: 100%; justify-content: space-between; }
+      }
+
+      @media(max-width: 620px) {
+        .kpi-grid { grid-template-columns: 1fr; }
+        .hero-score { min-width: 0; }
+        .modal-actions { justify-content: stretch; }
+        .modal-actions > * { justify-content: center; }
+      }
+    `}</style>
+  );
 }

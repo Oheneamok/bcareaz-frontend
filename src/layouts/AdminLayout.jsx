@@ -11,12 +11,24 @@ import {
   LogOut,
   ShieldCheck,
   Search,
+  Thermometer,
+  FileCheck2,
+  ClipboardList,
+  UserCheck,
+  Car,
 } from "lucide-react";
-
 const navItems = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard },
   { label: "Residents", path: "/residents", icon: Users },
   { label: "Staff", path: "/staff", icon: UserRound },
+
+  { label: "Temperature Logs", path: "/facility-compliance/logs", icon: Thermometer },
+  { label: "Group Notes Audit", path: "/facility-compliance/group-notes-audit", icon: FileCheck2 },
+  { label: "Progress Note Audit", path: "/facility-compliance/progress-note-audit", icon: ClipboardList },
+  { label: "Resident Sign In/Out", path: "/facility-compliance/resident-sign-logs", icon: UserCheck },
+  { label: "Visitor Log", path: "/facility-compliance/visitor-logs", icon: ClipboardCheck },
+  { label: "Transport Log", path: "/facility-compliance/transport-logs", icon: Car },
+
   { label: "Calendar", path: "/calendar", icon: CalendarDays },
   { label: "Tasks", path: "/tasks", icon: CheckSquare },
   { label: "Compliance", path: "/compliance", icon: ClipboardCheck },
@@ -95,22 +107,17 @@ export default function AdminLayout() {
       </aside>
 
       <section className="premium-main">
-        <header className="topbar">
-          <div>
-            <p className="topbar-label">Clinical Operations</p>
-            <h2>Home of Love Dashboard</h2>
-          </div>
+        
+		<header className="topbar">
+          <div className="portal-hero-content center">
+			 <div className="portal-hero-content center">
+			  <p className="portal-kicker">Clinical Operations</p>
+			  <h2>Home of Love Dashboard</h2>
+			  <p className="portal-kicker1">
+				unifiedCare Behavioral Health Residential Facility Platform
+			  </p>
+			</div>
 
-          <div className="topbar-actions">
-            <div className="search-box">
-              <Search size={17} />
-              <input placeholder="Search residents, tasks, documents..." />
-            </div>
-
-            <button className="topbar-bell">
-              <Bell size={18} />
-              <span />
-            </button>
           </div>
         </header>
 
