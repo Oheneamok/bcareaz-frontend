@@ -433,29 +433,67 @@ export default function CompliancePage() {
 
 		</div>
         <div className="filter-row">
-          {activeTab === "residents" && (
-            <select value={selectedResidentId} onChange={(e) => setSelectedResidentId(e.target.value)}>
-              <option value="">All Residents</option>
-              {residents.length === 0 && <option value="" disabled>No residents found</option>}
-              {residents.map((resident) => (
-                <option key={resident.id} value={resident.id}>{displayName(resident, "Resident")}</option>
-              ))}
-            </select>
-          )}
+          <div className="filter-copy">
+            <span>Compliance Workspace</span>
+            <strong>
+              {activeTab === "residents"
+                ? "Resident Compliance Review"
+                : activeTab === "staff"
+                ? "Staff Compliance Review"
+                : "Facility Compliance Review"}
+            </strong>
+            <p>Select a record, refresh source evidence, or export the audit report.</p>
+          </div>
 
-          {activeTab === "staff" && (
-            <select value={selectedStaffId} onChange={(e) => setSelectedStaffId(e.target.value)}>
-              <option value="">All Staff</option>
-              {staff.length === 0 && <option value="" disabled>No staff found</option>}
-              {staff.map((person) => (
-                <option key={person.id} value={person.id}>{displayName(person, "Staff")}</option>
-              ))}
-            </select>
-          )}
+          <div className="filter-controls">
+            {activeTab === "residents" && (
+              <select
+                value={selectedResidentId}
+                onChange={(e) => setSelectedResidentId(e.target.value)}
+              >
+                <option value="">All Residents</option>
+                {residents.length === 0 && (
+                  <option value="" disabled>No residents found</option>
+                )}
+                {residents.map((resident) => (
+                  <option key={resident.id} value={resident.id}>
+                    {displayName(resident, "Resident")}
+                  </option>
+                ))}
+              </select>
+            )}
 
-          <button className="secondary-button" type="button" onClick={refreshActiveChecklist}>
-            <RefreshCw size={16} /> Refresh Source Check
-          </button>
+            {activeTab === "staff" && (
+              <select
+                value={selectedStaffId}
+                onChange={(e) => setSelectedStaffId(e.target.value)}
+              >
+                <option value="">All Staff</option>
+                {staff.length === 0 && (
+                  <option value="" disabled>No staff found</option>
+                )}
+                {staff.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {displayName(person, "Staff")}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <button
+              className="secondary-button premium-action"
+              type="button"
+              onClick={refreshActiveChecklist}
+            >
+              <RefreshCw size={20} />
+              Refresh Source
+            </button>
+
+            <button className="primary-button premium-action" type="button">
+              <Download size={20} />
+              Export Audit
+            </button>
+          </div>
         </div>
 
         {checklistLoading ? (
@@ -1267,12 +1305,12 @@ function ComplianceStyles() {
       }
 
       .kpi-card {
-        min-height: 120px;
+        min-height: 200px;
         border-radius: 24px;
         padding: 24px;
         background: rgba(255,255,255,.88);
-        border: 1px solid rgba(255,255,255,.78);
-        box-shadow: 0 18px 45px rgba(15,23,42,.12);
+        border: 3px solid rgba(25,255,255,.78);
+        box-shadow: 0 18px 45px rgba(15,23,42,.62);
         display: flex;
         align-items: center;
         gap: 22px;
@@ -1300,7 +1338,7 @@ function ComplianceStyles() {
         display: grid;
         place-items: center;
         color: white;
-        box-shadow: 0 16px 34px rgba(15,23,42,.16);
+        box-shadow: 0 16px 34px rgba(15,23,42,.86);
       }
 
       .kpi-card.success .kpi-icon,
@@ -1325,7 +1363,7 @@ function ComplianceStyles() {
 
       .kpi-card p {
         margin: 0;
-        font-size: 14px;
+        font-size: 19px;
         font-weight: 950;
         color: #385071;
         text-transform: uppercase;
@@ -1337,15 +1375,15 @@ function ComplianceStyles() {
         font-size: 46px;
         line-height: 1;
         letter-spacing: -.08em;
-        color: #06152f;
+        color: #f20000;
       }
 
       .compliance-shell {
         border-radius: 30px;
         padding: 24px;
         background: rgba(255,255,255,.9);
-        border: 1px solid rgba(255,255,255,.82);
-        box-shadow: 0 24px 65px rgba(15,23,42,.13);
+        border: 1px solid rgba(25,255,255,.82);
+        box-shadow: 0 24px 65px rgba(15,23,42,.83);
       }
 
       .tabs-row {
@@ -1359,7 +1397,7 @@ function ComplianceStyles() {
         border: 0;
         border-radius: 22px;
         padding: 18px;
-        min-height: 74px;
+        min-height: 124px;
         background: #f8fbff;
         color: #385071;
         display: flex;
@@ -1385,31 +1423,133 @@ function ComplianceStyles() {
       .tab-button.active {
         background: linear-gradient(135deg, #0ea5e9, #1d4ed8);
         color: white;
-        box-shadow: 0 18px 38px rgba(37,99,235,.26);
+        box-shadow: 0 18px 38px rgba(37,99,235,.66);
       }
 
-      .filter-row {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        margin-bottom: 22px;
-        padding: 16px;
-        border-radius: 24px;
-        background: linear-gradient(135deg, #f8fbff, #edf6ff);
-        border: 1px solid #dbeafe;
-      }
+		.filter-row{
 
-      .filter-row select {
-        min-width: 340px;
-        border: 1px solid #cbd5e1;
-        border-radius: 16px;
-        padding: 14px 16px;
-        background: white;
-        color: #0f172a;
-        font-weight: 850;
-        outline: none;
-      }
+		display:flex;
 
+		align-items:center;
+
+		justify-content:space-between;
+
+		gap:24px;
+
+		margin:28px 0 34px;
+
+		padding:28px 32px;
+
+		min-height:130px;
+
+		border-radius:28px;
+
+		background:
+		linear-gradient(
+		135deg,
+		rgba(255,255,255,.98),
+		rgba(240,248,255,.96)
+		);
+
+		border:1px solid rgba(219,234,254,.9);
+
+		box-shadow:
+		0 22px 55px rgba(15,23,42,.10);
+
+		position:relative;
+
+		overflow:hidden;
+
+		}
+
+		.filter-row::before{
+
+		content:"";
+
+		position:absolute;
+
+		right:-80px;
+
+		top:-60px;
+
+		width:220px;
+
+		height:220px;
+
+		border-radius:50%;
+
+		background:
+		rgba(37,99,235,.06);
+
+		}
+
+		.filter-row::after{
+
+		content:"";
+
+		position:absolute;
+
+		left:-70px;
+
+		bottom:-90px;
+
+		width:180px;
+
+		height:180px;
+
+		border-radius:50%;
+
+		background:
+		rgba(14,165,233,.05);
+
+		}
+		.filter-row select{
+
+		position:relative;
+
+		z-index:2;
+
+		width:420px;
+
+		height:64px;
+
+		padding:0 22px;
+
+		border-radius:18px;
+
+		border:2px solid #dbeafe;
+
+		background:white;
+
+		font-size:17px;
+
+		font-weight:700;
+
+		color:#0f172a;
+
+		outline:none;
+
+		transition:.25s;
+
+		box-shadow:
+		0 8px 20px rgba(15,23,42,.05);
+
+		}
+
+		.filter-row select:hover{
+
+		border-color:#60a5fa;
+
+		}
+
+		.filter-row select:focus{
+
+		border-color:#2563eb;
+
+		box-shadow:
+		0 0 0 5px rgba(37,99,235,.12);
+
+		}
       .primary-button,
       .secondary-button {
         border: 0;
@@ -1428,11 +1568,28 @@ function ComplianceStyles() {
         background: linear-gradient(135deg, #1d4ed8, #0f766e);
       }
 
-      .secondary-button {
-        color: #334155;
-        background: white;
-        border: 1px solid #dbeafe;
-      }
+		.secondary-button{
+
+		height:64px;
+
+		padding:0 30px;
+
+		border-radius:18px;
+
+		font-size:16px;
+
+		font-weight:800;
+
+		display:flex;
+
+		align-items:center;
+
+		gap:12px;
+
+		box-shadow:
+		0 12px 30px rgba(15,23,42,.68);
+
+		}
 
       .checklist-sections {
         display: grid;
@@ -1491,7 +1648,7 @@ function ComplianceStyles() {
         gap: 14px;
         text-align: left;
         cursor: pointer;
-        box-shadow: 0 10px 24px rgba(15,23,42,.06);
+        box-shadow: 0 10px 24px rgba(15,23,42,.36);
         transition: .18s ease;
       }
 
@@ -1585,7 +1742,7 @@ function ComplianceStyles() {
 
       .missing-link {
         color: #b91c1c;
-        font-size: 12px;
+        font-size: 14px;
         font-weight: 950;
       }
 
@@ -1756,6 +1913,231 @@ function ComplianceStyles() {
         color: #b45309;
         font-weight: 850;
         font-size: 12px;
+      }
+
+
+
+      /* Ultra-premium compliance controls and checklist cards */
+      .filter-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 28px;
+        margin: 34px 0;
+        padding: 34px;
+        min-height: 150px;
+        border-radius: 34px;
+        background:
+          radial-gradient(circle at right, rgba(37,99,235,.12), transparent 30%),
+          linear-gradient(135deg, rgba(255,255,255,.98), rgba(239,246,255,.96));
+        border: 3px solid rgba(25,234,254,.95);
+        box-shadow: 0 28px 70px rgba(15,23,42,.44);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .filter-copy {
+        position: relative;
+        z-index: 2;
+      }
+
+      .filter-copy span {
+        display: block;
+        font-size: 15px;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: .12em;
+        color: #2563eb;
+      }
+
+      .filter-copy strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 32px;
+        line-height: 1;
+        letter-spacing: -.06em;
+        color: #071735;
+      }
+
+      .filter-copy p {
+        margin: 10px 0 0;
+        color: #f20000;
+        font-size: 20px;
+        font-weight: 700;
+      }
+
+      .filter-controls {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+
+      .filter-controls select {
+        width: 430px;
+        height: 128px;
+        padding: 0 22px;
+        border-radius: 20px;
+        border: 2px solid #bfdbfe;
+        background: white;
+        color: #071735;
+        font-size: 17px;
+        font-weight: 900;
+        outline: none;
+        box-shadow: 0 14px 28px rgba(15,23,42,.08);
+      }
+
+      .premium-action {
+        height: 128px;
+        padding: 0 28px;
+        border-radius: 20px;
+        font-size: 16px;
+        font-weight: 950;
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        box-shadow: 0 16px 34px rgba(15,23,42,.12);
+      }
+
+      .primary-button.premium-action {
+        color: white;
+        background: linear-gradient(135deg, #1d4ed8, #0f766e);
+      }
+
+      .secondary-button.premium-action {
+        color: #0f172a;
+        background: white;
+        border: 2px solid #dbeafe;
+      }
+
+      .checklist-sections {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 26px;
+      }
+
+      .section-card {
+        border-radius: 34px;
+        padding: 26px;
+        background:
+          radial-gradient(circle at top right, rgba(37,99,235,.1), transparent 34%),
+          linear-gradient(135deg, #ffffff, #f3f9ff);
+        border: 3px solid rgba(25,234,254,.95);
+        box-shadow: 0 24px 60px rgba(15,23,42,.12);
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        padding-bottom: 20px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid #dbeafe;
+      }
+
+      .section-header h3 {
+        margin: 0;
+        font-size: 30px;
+        line-height: 1;
+        letter-spacing: -.06em;
+        color: #071735;
+      }
+
+      .section-header span {
+        height: fit-content;
+        border-radius: 999px;
+        padding: 10px 16px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-weight: 950;
+        font-size: 13px;
+      }
+
+      .item-list {
+        display: grid;
+        gap: 16px;
+      }
+
+      .source-item {
+        width: 100%;
+        min-height: 126px;
+        border: 1px solid #dbeafe;
+        border-left-width: 8px;
+        border-radius: 26px;
+        padding: 22px;
+        background: rgba(255,255,255,.96);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        text-align: left;
+        cursor: pointer;
+        box-shadow: 0 16px 38px rgba(15,23,42,.60);
+        transition: .2s ease;
+      }
+
+      .source-item:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 24px 60px rgba(15,23,42,.18);
+      }
+
+      .source-left {
+        display: flex;
+        gap: 18px;
+        align-items: flex-start;
+        min-width: 0;
+      }
+
+      .source-left svg {
+        width: 58px;
+        height: 58px;
+        padding: 14px;
+        border-radius: 20px;
+        background: #eff6ff;
+        color: #2563eb;
+        flex: 0 0 auto;
+      }
+
+      .source-left strong {
+        display: block;
+        color: #071735;
+        font-size: 19px;
+        letter-spacing: -.03em;
+      }
+
+      .source-left p {
+        margin: 7px 0 0;
+        color: #64748b;
+        font-size: 15px;
+        line-height: 1.5;
+        font-weight: 650;
+      }
+
+      .source-actions {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex: 0 0 auto;
+      }
+
+      .status-chip {
+        border-radius: 999px;
+        padding: 11px 16px;
+        font-size: 12px;
+        font-weight: 950;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .missing-link {
+        border-radius: 999px;
+        padding: 11px 16px;
+        background: #fef2f2;
+        color: #b91c1c;
+        font-size: 13px;
+        font-weight: 950;
       }
 
       @media(max-width: 1180px) {

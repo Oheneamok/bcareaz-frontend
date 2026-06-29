@@ -7485,7 +7485,7 @@ nav {
   }
 }
 .portal-hero-premium {
-  min-height: 360px;
+  min-height: 560px;
   border-radius: 28px;
   overflow: hidden;
   position: relative;
@@ -7515,7 +7515,7 @@ nav {
 }
 
 .portal-tile {
-  min-height: 270px;
+  min-height: 470px;
   border: none;
   border-radius: 24px;
   overflow: hidden;

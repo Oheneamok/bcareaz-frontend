@@ -139,7 +139,7 @@ export default function ResidentCarePage() {
 		);
 
 		box-shadow:
-		0 30px 70px rgba(15,23,42,.22);
+		0 30px 70px rgba(15,23,42,.52);
 
 		}
 
@@ -374,7 +374,7 @@ export default function ResidentCarePage() {
 
         .stat-card {
           min-height: 110px;
-          border: 1px solid rgba(255,255,255,.75);
+          border: 2px solid rgba(255,255,255,.75);
           border-radius: 22px;
           padding: 24px;
           background: rgba(255,255,255,.86);
@@ -585,7 +585,7 @@ export default function ResidentCarePage() {
           width: fit-content;
           display: inline-flex;
           align-items: center;
-		  border: 1px solid rgba(255,255,255,.75);
+		  border: 1px solid rgba(25,255,255,.75);
           gap: 10px;
           border-radius: 999px;
           padding: 12px 18px;
@@ -593,7 +593,7 @@ export default function ResidentCarePage() {
           color: white;
           font-size: 20px;
           font-weight: 900;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.82);
         }
 
         .resident-care-panel {
@@ -601,7 +601,7 @@ export default function ResidentCarePage() {
           padding: 30px;
           background: rgba(255,255,255,.88);
           border: 3px solid rgba(255,255,255,.82);
-          box-shadow: 0 22px 55px rgba(15,23,42,.72);
+          box-shadow: 0 22px 55px rgba(15,23,42,.82);
         }
 
         .panel-header {
@@ -618,7 +618,7 @@ export default function ResidentCarePage() {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          font-size: 14px;
+          font-size: 24px;
           font-weight: 900;
           letter-spacing: .06em;
           text-transform: uppercase;
@@ -629,7 +629,7 @@ export default function ResidentCarePage() {
           margin: 0;
           font-size: 30px;
           letter-spacing: -0.05em;
-          color: #071735;
+          color: #f20000;
         }
 
         .panel-header button {
@@ -638,10 +638,10 @@ export default function ResidentCarePage() {
           padding: 15px 24px;
           background: #06122c;
           color: white;
-          font-size: 15px;
+          font-size: 25px;
           font-weight: 900;
           cursor: pointer;
-          box-shadow: 0 12px 28px rgba(15,23,42,.18);
+          box-shadow: 0 12px 28px rgba(15,23,42,.38);
         }
 
         .resident-task-list {
@@ -697,7 +697,7 @@ export default function ResidentCarePage() {
         .resident-task-row p {
           margin: 5px 0 0;
           color: #64748b;
-          font-size: 13px;
+          font-size: 18px;
         }
 
         .task-status {

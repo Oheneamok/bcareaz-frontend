@@ -391,12 +391,12 @@ export default function OperationsCenterPage() {
         }
 
         .stat-card {
-          min-height: 110px;
-          border: 1px solid rgba(255,255,255,.75);
+          min-height: 210px;
+          border: 3px solid rgba(25,255,255,.75);
           border-radius: 22px;
           padding: 24px;
           background: rgba(255,255,255,.86);
-          box-shadow: 0 18px 45px rgba(15,23,42,.12);
+          box-shadow: 0 18px 45px rgba(15,23,42,.62);
           display: flex;
           align-items: center;
           gap: 22px;
@@ -421,7 +421,7 @@ export default function OperationsCenterPage() {
 
         .stat-content span {
           display: block;
-          font-size: 14px;
+          font-size: 18px;
           font-weight: 900;
           text-transform: uppercase;
           letter-spacing: .06em;
@@ -434,7 +434,7 @@ export default function OperationsCenterPage() {
           font-size: 44px;
           line-height: 1;
           letter-spacing: -0.08em;
-          color: #06152f;
+          color: #f20000;
         }
 
         .operations-grid {
@@ -445,7 +445,7 @@ export default function OperationsCenterPage() {
         }
 
         .operations-card {
-          min-height: 260px;
+          min-height: 420px;
           border: 0;
           border-radius: 24px;
           padding: 34px;
@@ -454,7 +454,7 @@ export default function OperationsCenterPage() {
           cursor: pointer;
           position: relative;
           overflow: hidden;
-          box-shadow: 0 22px 50px rgba(15,23,42,.16);
+          box-shadow: 0 22px 50px rgba(15,23,42,.56);
           transition: transform .2s ease, box-shadow .2s ease;
           display: flex;
           align-items: center;
@@ -515,7 +515,7 @@ export default function OperationsCenterPage() {
 
         .operation-content p {
           margin: 16px 0 24px;
-          font-size: 16px;
+          font-size: 20px;
           line-height: 1.55;
           font-weight: 600;
           color: rgba(255,255,255,.9);
@@ -526,11 +526,12 @@ export default function OperationsCenterPage() {
           display: inline-flex;
           align-items: center;
           gap: 10px;
-          border-radius: 999px;
-          padding: 12px 18px;
+          border-radius: 29px;
+          padding: 18px 18px;
+		  border: 2px solid rgba(25,255,255,.75);
           background: rgba(0,0,0,.28);
           color: white;
-          font-size: 15px;
+          font-size: 20px;
           font-weight: 900;
         }
 
@@ -548,8 +549,8 @@ export default function OperationsCenterPage() {
           border-radius: 28px;
           padding: 30px;
           background: rgba(255,255,255,.88);
-          border: 1px solid rgba(255,255,255,.82);
-          box-shadow: 0 22px 55px rgba(15,23,42,.12);
+          border: 3px solid rgba(25,255,255,.82);
+          box-shadow: 0 22px 55px rgba(15,23,42,.52);
         }
 
         .panel-header {
@@ -565,7 +566,7 @@ export default function OperationsCenterPage() {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          font-size: 14px;
+          font-size: 18px;
           font-weight: 900;
           letter-spacing: .06em;
           text-transform: uppercase;
@@ -576,7 +577,7 @@ export default function OperationsCenterPage() {
           margin: 0;
           font-size: 30px;
           letter-spacing: -0.05em;
-          color: #071735;
+          color: #f20000;
         }
 
         .panel-header button {
@@ -585,10 +586,10 @@ export default function OperationsCenterPage() {
           padding: 15px 24px;
           background: #06122c;
           color: white;
-          font-size: 15px;
+          font-size: 20px;
           font-weight: 900;
           cursor: pointer;
-          box-shadow: 0 12px 28px rgba(15,23,42,.18);
+          box-shadow: 0 12px 28px rgba(15,23,42,.68);
           display: inline-flex;
           align-items: center;
           gap: 8px;
@@ -596,7 +597,7 @@ export default function OperationsCenterPage() {
 
         .empty-state {
           min-height: 178px;
-          border: 1px dashed rgba(37,99,235,.32);
+          border: 1px dashed rgba(37,99,235,.82);
           border-radius: 24px;
           display: grid;
           place-items: center;

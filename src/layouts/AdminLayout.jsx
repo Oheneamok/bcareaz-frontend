@@ -15,8 +15,11 @@ import {
   Thermometer,
   FileCheck2,
   Building2,
+  Brain,
+  Apple,
   ClipboardList,
   UserCheck,
+  UsersRound,
   Car,
 } from "lucide-react";
 const navItems = [
@@ -32,11 +35,14 @@ const navItems = [
   { label: "Visitor Log", path: "/facility-compliance/visitor-logs", icon: ClipboardCheck },
   { label: "Transport Log", path: "/facility-compliance/transport-logs", icon: Car },
   { label: "Nursing", path: "/nursing", icon: Stethoscope },
+  { label: "BHP Portal", path: "/bhp", icon: Brain },
   { label: "Calendar", path: "/calendar", icon: CalendarDays },
   { label: "Tasks", path: "/tasks", icon: CheckSquare },
   { label: "Compliance", path: "/compliance", icon: ClipboardCheck },
   { label: "Documents", path: "/documents", icon: FileText },
   { label: "Notifications", path: "/notifications", icon: Bell },
+  { label: "Clinical Team", path: "/clinical-team", icon: UsersRound },
+  { label: "Dietician", path: "/dietician", icon: Apple },
 ];
 
 export default function AdminLayout() {

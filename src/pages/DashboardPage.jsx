@@ -530,11 +530,11 @@ function DashboardStyles() {
 
       .stat-card {
         min-height: 245px;
-        border: 1px solid rgba(255,255,255,.82);
+        border: 3px solid rgba(25,255,255,.82);
         border-radius: 34px;
         padding: 36px;
         background: rgba(255,255,255,.9);
-        box-shadow: 0 26px 65px rgba(15,23,42,.13);
+        box-shadow: 0 26px 65px rgba(15,23,42,.83);
         display: flex;
         align-items: center;
         gap: 28px;
@@ -667,12 +667,12 @@ function DashboardStyles() {
       }
 
       .premium-panel {
-        min-height: 390px;
+        min-height: 490px;
         border-radius: 34px;
         padding: 34px;
         background: rgba(255,255,255,.92);
-        border: 1px solid rgba(255,255,255,.84);
-        box-shadow: 0 28px 75px rgba(15,23,42,.14);
+        border: 3px solid rgba(25,255,255,.84);
+        box-shadow: 0 28px 75px rgba(15,23,42,.54);
         position: relative;
         overflow: hidden;
       }
@@ -711,7 +711,7 @@ function DashboardStyles() {
         color: #1d7df2;
         text-transform: uppercase;
         letter-spacing: .08em;
-        font-size: 13px;
+        font-size: 18px;
         font-weight: 950;
       }
 
@@ -783,8 +783,8 @@ function DashboardStyles() {
       }
 
       .dashboard-metric span {
-        color: #52677f;
-        font-size: 15px;
+        color: #f20000;
+        font-size: 25px;
         font-weight: 900;
       }
 

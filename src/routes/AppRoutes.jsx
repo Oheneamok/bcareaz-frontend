@@ -20,6 +20,9 @@ import FacilityProgressNoteAuditPage from "../pages/FacilityProgressNoteAuditPag
 import ResidentCarePage from "../pages/ResidentCarePage";
 import OperationsCenterPage from "../pages/OperationsCenterPage";
 import NursingPage from "../pages/NursingPage";
+import BHPPage from "../pages/BHPPage";
+import ClinicalTeamPage from "../pages/ClinicalTeamPage";
+import DieticianPage from "../pages/DieticianPage";
 
 
 function ProtectedRoute({ children }) {
@@ -79,6 +82,9 @@ export default function AppRoutes() {
 		<Route path="/resident-care" element={<ResidentCarePage />} />
 		<Route path="/operations-center" element={<OperationsCenterPage />} />
 		<Route path="/nursing" element={<NursingPage />} />
+		<Route path="/bhp" element={<BHPPage />} />
+		<Route path="/clinical-team" element={<ClinicalTeamPage />} />
+		<Route path="/dietician" element={<DieticianPage />} />
 	
         <Route
           path="/facility-compliance/logs"
