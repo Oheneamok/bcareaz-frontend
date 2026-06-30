@@ -341,7 +341,7 @@ function DashboardStyles() {
 
 		gap:40px;
 
-		min-height:380px;
+		min-height:280px;
 
 		padding:46px;
 
@@ -403,8 +403,8 @@ function DashboardStyles() {
         position: absolute;
         right: -80px;
         bottom: -120px;
-        width: 420px;
-        height: 420px;
+        width: 320px;
+        height: 320px;
         border-radius: 999px;
         background: rgba(255,255,255,.13);
       }
@@ -431,7 +431,7 @@ function DashboardStyles() {
 
 		margin:0;
 
-		font-size:clamp(58px,6vw,90px);
+		font-size:clamp(38px,6vw,50px);
 
 		line-height:.90;
 
@@ -451,7 +451,7 @@ function DashboardStyles() {
 
 		max-width:760px;
 
-		font-size:20px;
+		font-size:17px;
 
 		line-height:1.7;
 
@@ -472,7 +472,7 @@ function DashboardStyles() {
         border: 0;
         border-radius: 999px;
         padding: 16px 24px;
-        font-weight: 950;
+        font-weight: 550;
         display: inline-flex;
         align-items: center;
         gap: 8px;
@@ -489,13 +489,13 @@ function DashboardStyles() {
       }
 
       .hero-status-card {
-        width: 360px;
-        min-width: 360px;
+        width: 200px;
+        min-width: 300px;
         border-radius: 34px;
         padding: 34px;
         align-self: stretch;
         background: rgba(255,255,255,.16);
-        border: 1px solid rgba(255,255,255,.28);
+        border: 4px solid rgba(25,255,255,.78);
         backdrop-filter: blur(18px);
         box-shadow: inset 0 1px 0 rgba(25,255,255,.22);
         display: flex;
@@ -504,8 +504,8 @@ function DashboardStyles() {
       }
 
       .hero-status-icon {
-        width: 104px;
-        height: 104px;
+        width: 64px;
+        height: 64px;
         border-radius: 32px;
         display: grid;
         place-items: center;
@@ -515,9 +515,10 @@ function DashboardStyles() {
 
       .hero-status-card strong {
         margin-top: 10px;
-        font-size: 56px;
+        font-size: 26px;
         line-height: 1;
         letter-spacing: -.07em;
+		color: #f20000;
       }
 
       .dashboard-kpis {
@@ -529,7 +530,7 @@ function DashboardStyles() {
       }
 
       .stat-card {
-        min-height: 245px;
+        min-height: 145px;
         border: 3px solid rgba(25,255,255,.82);
         border-radius: 34px;
         padding: 36px;
@@ -573,9 +574,9 @@ function DashboardStyles() {
       .stat-icon {
         position: relative;
         z-index: 1;
-        width: 124px;
-        height: 124px;
-        min-width: 124px;
+        width: 84px;
+        height: 84px;
+        min-width: 84px;
         border-radius: 36px;
         display: grid;
         place-items: center;
@@ -584,8 +585,8 @@ function DashboardStyles() {
       }
 
       .stat-icon svg {
-        width: 64px;
-        height: 64px;
+        width: 54px;
+        height: 54px;
       }
 
       .stat-content {
@@ -604,7 +605,7 @@ function DashboardStyles() {
 
       .stat-content h2 {
         margin: 14px 0 0;
-        font-size: 78px;
+        font-size: 58px;
         line-height: .92;
         letter-spacing: -.1em;
         color: #06152f;
@@ -667,7 +668,7 @@ function DashboardStyles() {
       }
 
       .premium-panel {
-        min-height: 490px;
+        min-height: 390px;
         border-radius: 34px;
         padding: 34px;
         background: rgba(255,255,255,.92);
@@ -685,7 +686,7 @@ function DashboardStyles() {
         right: -110px;
         bottom: -140px;
         border-radius: 999px;
-        background: rgba(37,99,235,.08);
+        background: rgba(37,99,235,.18);
       }
 
       .premium-panel.wide {
@@ -717,7 +718,7 @@ function DashboardStyles() {
 
       .panel-header h3 {
         margin: 0;
-        font-size: 38px;
+        font-size: 28px;
         line-height: 1;
         letter-spacing: -.06em;
       }
@@ -738,7 +739,7 @@ function DashboardStyles() {
       }
 
       .score-circle strong {
-        font-size: 58px;
+        font-size: 48px;
         letter-spacing: -.09em;
       }
 
@@ -770,7 +771,7 @@ function DashboardStyles() {
       .dashboard-metric {
         position: relative;
         z-index: 1;
-        min-height: 82px;
+        min-height: 32px;
         padding: 18px 20px;
         border-radius: 22px;
         background: linear-gradient(135deg, #ffffff, #f4f9ff);
@@ -784,12 +785,12 @@ function DashboardStyles() {
 
       .dashboard-metric span {
         color: #f20000;
-        font-size: 25px;
-        font-weight: 900;
+        font-size: 20px;
+        font-weight: 700;
       }
 
       .dashboard-metric strong {
-        font-size: 36px;
+        font-size: 25px;
         letter-spacing: -.07em;
         color: #071735;
       }

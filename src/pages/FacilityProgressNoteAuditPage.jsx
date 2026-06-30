@@ -569,7 +569,7 @@ export default function ResidentProgressNotePage() {
         }
 
         .progress-hero {
-          min-height: 390px;
+          min-height: 490px;
           border-radius: 28px;
           padding: 44px;
           margin-bottom: 24px;
@@ -631,7 +631,7 @@ export default function ResidentProgressNotePage() {
         }
 
         .progress-hero p {
-          max-width: 800px;
+          max-width: 820px;
           margin: 20px 0 0;
           color: rgba(255,255,255,.9);
           font-size: 18px;
@@ -654,7 +654,7 @@ export default function ResidentProgressNotePage() {
           align-items: center;
           gap: 9px;
           background: rgba(255,255,255,.12);
-          border: 1px solid rgba(255,255,255,.22);
+          border: 4px solid rgba(25,255,255,.82);
           color: rgba(255,255,255,.88);
           font-size: 12px;
           font-weight: 950;
@@ -668,7 +668,7 @@ export default function ResidentProgressNotePage() {
           border-radius: 22px;
           padding: 26px;
           background: rgba(255,255,255,.14);
-          border: 1px solid rgba(255,255,255,.25);
+          border: 4px solid rgba(25,255,255,.55);
           backdrop-filter: blur(18px);
           box-shadow: 0 22px 56px rgba(0,0,0,.22);
         }
@@ -722,7 +722,7 @@ export default function ResidentProgressNotePage() {
           border-radius: 24px;
           padding: 30px;
           background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,251,255,.96));
-          border: 1px solid rgba(219,234,254,.95);
+          border: 3px solid rgba(25,255,255,.95);
           box-shadow: 0 24px 64px rgba(15,23,42,.13);
           position: relative;
           overflow: hidden;
@@ -735,7 +735,7 @@ export default function ResidentProgressNotePage() {
           top: 0;
           left: 0;
           right: 0;
-          height: 5px;
+          height: 15px;
           background: linear-gradient(90deg, #2563eb, #06b6d4, #14b8a6);
         }
 
@@ -814,7 +814,7 @@ export default function ResidentProgressNotePage() {
 
         .section-label {
           color: #1e3a8a;
-          font-size: 13px;
+          font-size: 15px;
           font-weight: 950;
           text-transform: uppercase;
           letter-spacing: .08em;
@@ -831,7 +831,7 @@ export default function ResidentProgressNotePage() {
 
         .form-field label {
           color: #385071;
-          font-size: 13px;
+          font-size: 16px;
           font-weight: 950;
           text-transform: uppercase;
           letter-spacing: .06em;
@@ -854,11 +854,11 @@ export default function ResidentProgressNotePage() {
           border-radius: 15px;
           padding: 0 16px;
           background: white;
-          color: #071735;
-          font-size: 15px;
+          color: #274DF5;
+          font-size: 17px;
           font-weight: 800;
           outline: none;
-          box-shadow: 0 8px 20px rgba(15,23,42,.04);
+          box-shadow: 0 8px 20px rgba(15,23,42,.74);
         }
 
         .form-field input[readonly] {
@@ -872,6 +872,7 @@ export default function ResidentProgressNotePage() {
           padding: 15px 16px;
           resize: vertical;
           line-height: 1.55;
+		  border: 2px solid rgba(25,255,255,.95);
         }
 
         .choice-grid {

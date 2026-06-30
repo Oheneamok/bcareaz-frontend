@@ -151,7 +151,7 @@ export default function PortalHomePage() {
         }
 
         .portal-hero-premium {
-          min-height: 590px;
+          min-height: 300px;
           border-radius: 36px;
           padding: 46px;
           margin-bottom: 28px;
@@ -211,7 +211,7 @@ export default function PortalHomePage() {
           width: fit-content;
           border-radius: 22px;
           background: rgba(255,255,255,.16);
-          border: 4px solid rgba(25,255,255,.24);
+          border: 4px solid rgba(25,255,255,.77);
           backdrop-filter: blur(12px);
         }
 
@@ -242,15 +242,15 @@ export default function PortalHomePage() {
           padding: 30px;
           border-radius: 30px;
           background: rgba(255,255,255,.16);
-          border: 1px solid rgba(255,255,255,.25);
+          border: 3px solid rgba(25,255,255,.75);
           backdrop-filter: blur(18px);
           box-shadow: 0 22px 60px rgba(0,0,0,.2);
           text-align: center;
         }
 
         .task-circle {
-          width: 86px;
-          height: 86px;
+          width: 56px;
+          height: 56px;
           margin: 0 auto 18px;
           border-radius: 28px;
           display: grid;
@@ -266,14 +266,14 @@ export default function PortalHomePage() {
 
         .portal-hero-task-card h3 {
           margin: 8px 0;
-          font-size: 46px;
+          font-size: 36px;
           letter-spacing: -.07em;
         }
 
         .portal-hero-task-card button {
           margin-top: 22px;
           width: 100%;
-          height: 58px;
+          height: 38px;
           border: 0;
           border-radius: 18px;
           background: white;
@@ -294,7 +294,7 @@ export default function PortalHomePage() {
         }
 
         .portal-tile {
-          min-height: 485px;
+          min-height: 355px;
           border: 0;
           border-radius: 28px;
           padding: 32px;
@@ -342,9 +342,9 @@ export default function PortalHomePage() {
         .portal-icon {
           position: relative;
           z-index: 2;
-          width: 132px;
-          height: 132px;
-          border-radius: 22px;
+          width: 65px;
+          height: 65px;
+          border-radius: 12px;
           display: grid;
           place-items: center;
           background: rgba(255,255,255,.25);
@@ -357,8 +357,8 @@ export default function PortalHomePage() {
         }
 
         .portal-icon svg {
-          width: 62px;
-          height: 62px;
+          width: 52px;
+          height: 52px;
         }
 
         .portal-content {
@@ -368,7 +368,7 @@ export default function PortalHomePage() {
 
         .portal-content h3 {
           margin: 0;
-          font-size: 31px;
+          font-size: 21px;
           line-height: 1.02;
           letter-spacing: -.06em;
         }
@@ -392,7 +392,7 @@ export default function PortalHomePage() {
           background: rgba(0,0,0,.28);
 		  border: 3px solid rgba(25,255,255,.65);
           color: white;
-          font-size: 20px;
+          font-size: 15px;
           font-weight: 950;
         }
 
@@ -412,7 +412,7 @@ export default function PortalHomePage() {
         }
 
         .portal-summary-strip > div {
-          min-height: 260px;
+          min-height: 160px;
           border-radius: 24px;
           padding: 22px;
           background: rgba(255,255,255,.9);

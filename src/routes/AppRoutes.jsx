@@ -23,7 +23,12 @@ import NursingPage from "../pages/NursingPage";
 import BHPPage from "../pages/BHPPage";
 import ClinicalTeamPage from "../pages/ClinicalTeamPage";
 import DieticianPage from "../pages/DieticianPage";
-
+import ResidentSignInOutPage from "../pages/ResidentSignInOutPage";
+import VisitorSignInOutPage from "../pages/VisitorSignInOutPage";
+import VehicleTransportPage from "../pages/VehicleTransportPage";
+import FacilityOperationsCenterPage from "../pages/FacilityOperationsCenterPage";
+import FacilityRegulatoryCompliancePage from "../pages/FacilityRegulatoryCompliancePage";
+import OperationsDashboardPage from "../pages/OperationsDashboardPage";
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("bcareaz_token");
@@ -98,6 +103,31 @@ export default function AppRoutes() {
           path="/facility-compliance/progress-note-audit"
           element={<FacilityProgressNoteAuditPage />}
         />
+		<Route
+          path="/facility-compliance/resident-sign-logs"
+          element={<ResidentSignInOutPage />}
+        />
+		<Route
+          path="/facility-compliance/visitor-logs"
+          element={<VisitorSignInOutPage />}
+        />
+		<Route
+          path="/facility-compliance/transport-logs"
+          element={<VehicleTransportPage />}
+        />
+		<Route
+          path="/facility-compliance/facility-maintenance-logs"
+          element={<FacilityOperationsCenterPage/>}
+        />
+		<Route
+          path="/facility-compliance/facility-compliance"
+          element={<FacilityRegulatoryCompliancePage/>}
+        />
+		<Route
+          path="/facility-compliance/operations-dashboard"
+          element={<OperationsDashboardPage/>}
+        />
+		
       </Route>
 
       <Route path="*" element={<Navigate to="/portal" replace />} />

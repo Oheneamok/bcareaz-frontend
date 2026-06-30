@@ -105,7 +105,7 @@ export default function ResidentCarePage() {
           min-height: 100vh;
           padding: 22px;
           background:
-            radial-gradient(circle at top left, rgba(59,130,246,.28), transparent 28%),
+            radial-gradient(circle at top left, rgba(59,130,246,.28), transparent 68%),
             radial-gradient(circle at bottom right, rgba(147,197,253,.35), transparent 32%),
             linear-gradient(135deg, #eaf4ff 0%, #f8fbff 52%, #dcecff 100%);
           color: #071735;
@@ -116,11 +116,11 @@ export default function ResidentCarePage() {
 		justify-content:space-between;
 		align-items:center;
 
-		gap:40px;
+		gap:30px;
 
 		margin-bottom:30px;
 
-		padding:48px;
+		padding:38px;
 
 		border-radius:34px;
 
@@ -152,8 +152,8 @@ export default function ResidentCarePage() {
 		right:-120px;
 		bottom:-140px;
 
-		width:420px;
-		height:420px;
+		width:320px;
+		height:320px;
 
 		border-radius:50%;
 
@@ -176,7 +176,7 @@ export default function ResidentCarePage() {
 
 		border-radius:50%;
 
-		background:rgba(255,255,255,.08);
+		background:rgba(255,255,255,.28);
 
 		}
 
@@ -185,7 +185,7 @@ export default function ResidentCarePage() {
 		position:relative;
 		z-index:2;
 
-		max-width:760px;
+		max-width:860px;
 
 		}
 
@@ -213,7 +213,7 @@ export default function ResidentCarePage() {
 
 		margin:0;
 
-		font-size:clamp(52px,6vw,82px);
+		font-size:clamp(52px,6vw,42px);
 
 		line-height:.92;
 
@@ -229,7 +229,7 @@ export default function ResidentCarePage() {
 
 		line-height:1.7;
 
-		max-width:680px;
+		max-width:780px;
 
 		color:rgba(255,255,255,.88);
 
@@ -298,7 +298,7 @@ export default function ResidentCarePage() {
 
 		backdrop-filter:blur(16px);
 
-		border:1px solid rgba(255,255,255,.22);
+		border:3px solid rgba(25,255,255,.72);
 
 		}
 
@@ -322,7 +322,7 @@ export default function ResidentCarePage() {
 
 		margin-top:16px;
 
-		font-size:68px;
+		font-size:38px;
 
 		line-height:1;
 
@@ -350,7 +350,7 @@ export default function ResidentCarePage() {
 
 		border-radius:999px;
 
-		background:rgba(255,255,255,.18);
+		background:rgba(25,255,255,.58);
 
 		overflow:hidden;
 
@@ -374,11 +374,11 @@ export default function ResidentCarePage() {
 
         .stat-card {
           min-height: 110px;
-          border: 2px solid rgba(255,255,255,.75);
+          border: 5px solid rgba(25,255,255,.75);
           border-radius: 22px;
           padding: 24px;
           background: rgba(255,255,255,.86);
-          box-shadow: 0 18px 45px rgba(15,23,42,.12);
+          box-shadow: 0 18px 45px rgba(15,23,42,.72);
           display: flex;
           align-items: center;
           gap: 22px;
@@ -539,9 +539,9 @@ export default function ResidentCarePage() {
         .resident-care-icon {
           position: relative;
           z-index: 2;
-          width: 150px;
-          height: 150px;
-          min-width: 150px;
+          width: 100px;
+          height: 100px;
+          min-width: 100px;
           border-radius: 34px;
           display: grid;
           place-items: center;
@@ -549,7 +549,7 @@ export default function ResidentCarePage() {
           color: white;
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,.45),
-            0 18px 40px rgba(15,23,42,.18);
+            0 18px 40px rgba(15,23,42,.78);
           backdrop-filter: blur(14px);
         }
 
@@ -589,9 +589,9 @@ export default function ResidentCarePage() {
           gap: 10px;
           border-radius: 999px;
           padding: 12px 18px;
-          background: rgba(22,0,0,.48);
+          background: rgba(0,0,0,.88);
           color: white;
-          font-size: 20px;
+          font-size: 15px;
           font-weight: 900;
           box-shadow: inset 0 1px 0 rgba(255,255,255,.82);
         }
@@ -627,7 +627,7 @@ export default function ResidentCarePage() {
 
         .panel-header h2 {
           margin: 0;
-          font-size: 30px;
+          font-size: 20px;
           letter-spacing: -0.05em;
           color: #f20000;
         }

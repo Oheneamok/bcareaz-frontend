@@ -298,9 +298,7 @@ export default function CompliancePage() {
 		</p>
 
 		<h1>
-		  Facility Compliance
-		  <br />
-		  Command Center
+		  Compliance Command Center
 		</h1>
 
 		<p>
@@ -1121,7 +1119,7 @@ function ComplianceStyles() {
 
 		margin:0;
 
-		font-size:clamp(52px,6vw,80px);
+		font-size:clamp(42px,5vw,50px);
 
 		line-height:.92;
 
@@ -1137,7 +1135,7 @@ function ComplianceStyles() {
 
 		margin-top:22px;
 
-		max-width:670px;
+		max-width:770px;
 
 		font-size:19px;
 

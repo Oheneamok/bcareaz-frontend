@@ -436,7 +436,7 @@ export default function FacilityGroupNotesAuditPage() {
 
         .section-label {
           color: #1e3a8a;
-          font-size: 13px;
+          font-size: 15px;
           font-weight: 950;
           text-transform: uppercase;
           letter-spacing: .08em;

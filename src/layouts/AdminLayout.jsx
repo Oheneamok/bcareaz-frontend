@@ -21,6 +21,7 @@ import {
   UserCheck,
   UsersRound,
   Car,
+  Wrench,
 } from "lucide-react";
 const navItems = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard },
@@ -34,6 +35,8 @@ const navItems = [
   { label: "Resident Sign In/Out", path: "/facility-compliance/resident-sign-logs", icon: UserCheck },
   { label: "Visitor Log", path: "/facility-compliance/visitor-logs", icon: ClipboardCheck },
   { label: "Transport Log", path: "/facility-compliance/transport-logs", icon: Car },
+  { label: "Maintenance Log", path: "/facility-compliance/facility-maintenance-logs", icon: Wrench },
+  { label: "Facility Log", path: "/facility-compliance/facility-compliance", icon: Building2 },
   { label: "Nursing", path: "/nursing", icon: Stethoscope },
   { label: "BHP Portal", path: "/bhp", icon: Brain },
   { label: "Calendar", path: "/calendar", icon: CalendarDays },

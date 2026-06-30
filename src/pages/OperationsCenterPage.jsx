@@ -85,28 +85,28 @@ const operationModules = [
   {
     title: "Vehicle & Transport",
     description: "Vehicle safety, transport logs, mileage and maintenance records.",
-    path: "/facility-compliance/vehicle-logs",
+    path: "/facility-compliance/transport-logs",
     icon: Car,
     className: "module-pink",
   },
   {
     title: "Maintenance Checklist",
     description: "Monthly maintenance, repairs, safety checks and facility readiness.",
-    path: "/facility-compliance/maintenance",
+    path: "/facility-compliance/facility-maintenance-logs",
     icon: Wrench,
     className: "module-indigo",
   },
   {
     title: "Facility Compliance",
     description: "Fire drills, pest control, inspections, safety and regulatory records.",
-    path: "/facility-compliance",
+    path: "/facility-compliance/facility-compliance",
     icon: Building2,
     className: "module-teal",
   },
   {
     title: "Operations Dashboard",
     description: "Executive view of daily operations, risks, tasks and compliance activity.",
-    path: "/operations-dashboard",
+    path: "/facility-compliance/operations-dashboard",
     icon: Activity,
     className: "module-red",
   },
@@ -139,7 +139,7 @@ export default function OperationsCenterPage() {
 
 		gap:40px;
 
-		min-height:360px;
+		min-height:300px;
 
 		padding:42px 46px;
 
@@ -391,7 +391,7 @@ export default function OperationsCenterPage() {
         }
 
         .stat-card {
-          min-height: 210px;
+          min-height: 110px;
           border: 3px solid rgba(25,255,255,.75);
           border-radius: 22px;
           padding: 24px;
@@ -445,7 +445,7 @@ export default function OperationsCenterPage() {
         }
 
         .operations-card {
-          min-height: 420px;
+          min-height: 220px;
           border: 0;
           border-radius: 24px;
           padding: 34px;
