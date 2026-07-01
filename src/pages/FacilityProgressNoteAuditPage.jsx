@@ -98,6 +98,27 @@ export default function ResidentProgressNotePage() {
     return user?.full_name || user?.name || user?.email || "";
   }
 
+	function getResidentName(residentOrId) {
+	  if (!residentOrId) return "Resident";
+
+	  if (typeof residentOrId === "string") {
+		const resident = residents.find((r) => String(r.id) === String(residentOrId));
+		if (!resident) return "Resident";
+
+		return [resident.first_name, resident.middle_name, resident.last_name]
+		  .filter(Boolean)
+		  .join(" ");
+	  }
+
+	  return [
+		residentOrId.first_name,
+		residentOrId.middle_name,
+		residentOrId.last_name,
+	  ]
+		.filter(Boolean)
+		.join(" ");
+	}
+
   function shiftWithStaff(user = currentUser) {
     const staffName = getStaffName(user);
 
@@ -112,7 +133,11 @@ export default function ResidentProgressNotePage() {
   async function loadResidents() {
     try {
       const res = await api.get("/residents");
-      setResidents(res.data || []);
+      const list = Array.isArray(res.data)
+		  ? res.data
+		  : res.data?.items || res.data?.data || [];
+
+		setResidents(list);
     } catch {
       setResidents([]);
     }
@@ -168,7 +193,7 @@ export default function ResidentProgressNotePage() {
       setForm((prev) => ({
         ...prev,
         resident_id: value,
-        resident_name: resident?.full_name || resident?.name || "",
+        resident_name: resident ? getResidentName(resident) : "",
       }));
 
       return;
@@ -1132,7 +1157,7 @@ export default function ResidentProgressNotePage() {
                   <option value="">Select Resident</option>
                   {residents.map((resident) => (
                     <option key={resident.id} value={resident.id}>
-                      {resident.full_name || resident.name}
+                      {getResidentName(resident)}
                     </option>
                   ))}
                 </select>
@@ -1200,7 +1225,9 @@ export default function ResidentProgressNotePage() {
 
             {notes.map((note) => (
               <div className="note-row" key={note.id}>
-                <strong>{note.resident_name || "Resident Not Recorded"}</strong>
+                <strong>
+				  {note.resident_name || getResidentName(note.resident_id)}
+				</strong>
 
                 <p>
                   {note.morning_shift?.comments ||

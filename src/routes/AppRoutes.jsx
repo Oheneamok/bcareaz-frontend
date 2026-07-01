@@ -29,6 +29,10 @@ import VehicleTransportPage from "../pages/VehicleTransportPage";
 import FacilityOperationsCenterPage from "../pages/FacilityOperationsCenterPage";
 import FacilityRegulatoryCompliancePage from "../pages/FacilityRegulatoryCompliancePage";
 import OperationsDashboardPage from "../pages/OperationsDashboardPage";
+import MedicationCenterPage from "../pages/MedicationCenterPage";
+import ResidentProgressNotesPage from "../pages/ResidentProgressNotesPage";  ResidentGroupNotesPage
+import ResidentGroupNotesPage from "../pages/ResidentGroupNotesPage"; 
+import ResidentHourlyLogsPage from "../pages/ResidentHourlyLogsPage";
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("bcareaz_token");
@@ -126,6 +130,22 @@ export default function AppRoutes() {
 		<Route
           path="/facility-compliance/operations-dashboard"
           element={<OperationsDashboardPage/>}
+        />
+	    <Route
+          path="/resident-care/medications"
+          element={<MedicationCenterPage/>}
+        />
+		<Route
+          path="/resident-care/progress-notes"
+          element={<ResidentProgressNotesPage/>}
+        />
+		<Route
+          path="/resident-care/group-notes"
+          element={<ResidentGroupNotesPage/>}
+        />
+		<Route
+          path="/resident-care/resident-activity-logs"
+          element={<ResidentHourlyLogsPage/>}
         />
 		
       </Route>
