@@ -49,7 +49,7 @@ const careModules = [
   {
     title: "Daily Activities",
     description: "ADLs, meals, hygiene, participation and daily routines.",
-    path: "/resident-care/daily-activities",
+    path: "/resident-care/daily-summary-activities",
     icon: Activity,
     className: "module-cyan",
   },

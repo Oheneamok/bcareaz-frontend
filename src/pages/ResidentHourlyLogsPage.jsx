@@ -12,6 +12,17 @@ import {
   Search,
   ShieldAlert,
   UserCheck,
+  Moon,
+  Utensils,
+  Droplets,
+  UsersRound,
+  Pill,
+  AlertTriangle,
+  Footprints,
+  DoorOpen,
+  Brain,
+  Flame,
+  ClipboardCheck,
 } from "lucide-react";
 import api from "../services/api";
 import cftHero from "../assets/cft.png";
@@ -119,6 +130,44 @@ const SAFETY = [
   "Medical Concern",
 ];
 
+const CHECK_SECTIONS = [
+  {
+    title: "Resident Status",
+    subtitle: "Basic wellness observations",
+    icon: HeartPulse,
+    tone: "blue",
+    items: [
+      ["sleeping", "Sleeping", Moon],
+      ["meal_taken", "Meal Taken", Utensils],
+      ["hydration", "Hydration", Droplets],
+      ["visitor_present", "Visitor Present", UsersRound],
+    ],
+  },
+  {
+    title: "Medication",
+    subtitle: "Medication-related check",
+    icon: Pill,
+    tone: "green",
+    items: [
+      ["medication_due", "Medication Due", Clock],
+      ["medication_taken", "Medication Taken", Pill],
+    ],
+  },
+  {
+    title: "Risk & Safety",
+    subtitle: "Escalation and risk flags",
+    icon: ShieldAlert,
+    tone: "red",
+    items: [
+      ["fall_risk", "Fall Risk", Footprints],
+      ["elopement_risk", "Elopement Risk", DoorOpen],
+      ["suicide_risk", "Suicide Risk", Brain],
+      ["aggressive_behavior", "Aggressive Behavior", Flame],
+      ["incident_observed", "Incident Observed", AlertTriangle],
+    ],
+  },
+];
+
 export default function ResidentHourlyLogsPage() {
   const [residents, setResidents] = useState([]);
   const [selectedResidentId, setSelectedResidentId] = useState("");
@@ -195,6 +244,13 @@ export default function ResidentHourlyLogsPage() {
     }));
   }
 
+  function toggleCheck(name) {
+    setForm((prev) => ({
+      ...prev,
+      [name]: !Boolean(prev[name]),
+    }));
+  }
+
   async function submitLog(e) {
     e.preventDefault();
 
@@ -232,8 +288,381 @@ export default function ResidentHourlyLogsPage() {
     }
   }
 
+  function isRiskLog(log) {
+    return (
+      log.incident_observed ||
+      log.fall_risk ||
+      log.elopement_risk ||
+      log.suicide_risk ||
+      log.aggressive_behavior ||
+      log.safety_status === "High Risk"
+    );
+  }
+
   return (
     <div className="hourly-page">
+      <section className="hourly-hero">
+        <div>
+          <p className="hero-kicker">
+            <Activity size={18} />
+            ResidentCare Command Center
+          </p>
+          <h1>
+            Hourly
+            <br />
+            Wellness Checks
+          </h1>
+          <p>
+            Document resident activity, location, mood, behavior, safety status,
+            medication observations, and risk flags throughout the day.
+          </p>
+        </div>
+
+        <div className="hero-metrics">
+          <div className="metric-card">
+            <strong>{dashboard?.total_checks ?? 0}</strong>
+            <span>Total Checks</span>
+          </div>
+          <div className="metric-card">
+            <strong>{dashboard?.incidents ?? 0}</strong>
+            <span>Incidents</span>
+          </div>
+          <div className="metric-card">
+            <strong>{dashboard?.high_risk ?? 0}</strong>
+            <span>High Risk</span>
+          </div>
+        </div>
+      </section>
+
+      {message && <div className="message-bar">{message}</div>}
+
+      <div className="filter-card">
+        <div className="filter-left">
+          <div className="filter-icon">
+            <Search size={24} />
+          </div>
+          <div>
+            <p className="filter-title">
+              {selectedResident ? residentName(selectedResident) : "All Residents"}
+            </p>
+            <p className="filter-subtitle">
+              Select resident and date to view hourly wellness timeline.
+            </p>
+          </div>
+        </div>
+
+        <div className="filter-controls">
+          <select
+            value={selectedResidentId}
+            onChange={(e) => {
+              setSelectedResidentId(e.target.value);
+              setForm((prev) => ({ ...prev, resident_id: e.target.value }));
+            }}
+          >
+            <option value="">All Residents</option>
+            {residents.map((resident) => (
+              <option key={resident.id} value={resident.id}>
+                {residentName(resident)}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+          />
+
+          <button className="secondary-btn" type="button" onClick={loadLogs}>
+            <RefreshCw size={18} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <section className="page-grid">
+        <form className="premium-card" onSubmit={submitLog}>
+          <div className="card-header">
+            <div>
+              <p>New Hourly Check</p>
+              <h2>Resident Wellness Log</h2>
+            </div>
+            <UserCheck size={32} color="#2563eb" />
+          </div>
+
+          <div className="form-grid">
+            <div className="form-field full">
+              <label>Resident</label>
+              <select name="resident_id" value={form.resident_id} onChange={handleChange} required>
+                <option value="">Select Resident</option>
+                {residents.map((resident) => (
+                  <option key={resident.id} value={resident.id}>
+                    {residentName(resident)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label>Check Date/Time</label>
+              <input
+                type="datetime-local"
+                name="check_datetime"
+                value={form.check_datetime}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div className="form-field">
+              <label>Shift</label>
+              <select name="shift" value={form.shift} onChange={handleChange}>
+                <option value="DAY">Day</option>
+                <option value="EVENING">Evening</option>
+                <option value="OVERNIGHT">Overnight</option>
+              </select>
+            </div>
+			            <div className="form-field">
+              <label>Location</label>
+              <input
+                name="location"
+                value={form.location}
+                onChange={handleChange}
+                placeholder="Bedroom, living room, patio..."
+              />
+            </div>
+
+            <div className="form-field">
+              <label>Activity</label>
+              <select name="activity" value={form.activity} onChange={handleChange}>
+                <option value="">Select Activity</option>
+                {ACTIVITIES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label>Mood</label>
+              <select name="mood" value={form.mood} onChange={handleChange}>
+                <option value="">Select Mood</option>
+                {MOODS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label>Behavior</label>
+              <select name="behavior" value={form.behavior} onChange={handleChange}>
+                <option value="">Select Behavior</option>
+                {BEHAVIORS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label>Safety Status</label>
+              <select
+                name="safety_status"
+                value={form.safety_status}
+                onChange={handleChange}
+              >
+                {SAFETY.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label>Supervision Level</label>
+              <select
+                name="supervision_level"
+                value={form.supervision_level}
+                onChange={handleChange}
+              >
+                <option value="Independent">Independent</option>
+                <option value="Visual Check">Visual Check</option>
+                <option value="15 Minute Check">15 Minute Check</option>
+                <option value="30 Minute Check">30 Minute Check</option>
+                <option value="Hourly">Hourly</option>
+                <option value="One-to-One">One-to-One</option>
+                <option value="Line of Sight">Line of Sight</option>
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label>Pain Level</label>
+              <input
+                type="number"
+                min="0"
+                max="10"
+                name="pain_level"
+                value={form.pain_level}
+                onChange={handleChange}
+                placeholder="0 - 10"
+              />
+            </div>
+
+            <div className="form-field">
+              <label>Status</label>
+              <select name="status" value={form.status} onChange={handleChange}>
+                <option value="COMPLETED">Completed</option>
+                <option value="OPEN">Open</option>
+                <option value="NEEDS_FOLLOW_UP">Needs Follow Up</option>
+              </select>
+            </div>
+
+            <div className="check-sections">
+              {CHECK_SECTIONS.map((section) => {
+                const SectionIcon = section.icon;
+
+                return (
+                  <div className={`check-section ${section.tone}`} key={section.title}>
+                    <div className="check-section-header">
+                      <div className="section-title-wrap">
+                        <div className="section-icon">
+                          <SectionIcon size={20} />
+                        </div>
+                        <div>
+                          <h3>{section.title}</h3>
+                          <span>{section.subtitle}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="check-grid">
+                      {section.items.map(([name, label, Icon]) => (
+                        <button
+                          type="button"
+                          className={`check-tile ${form[name] ? "active" : ""}`}
+                          key={name}
+                          onClick={() => toggleCheck(name)}
+                        >
+                          <div className="check-left">
+                            <div className="check-icon">
+                              <Icon size={18} />
+                            </div>
+                            <span>{label}</span>
+                          </div>
+
+                          <div className="check-indicator">
+                            {form[name] ? <CheckCircle2 size={18} /> : null}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="form-field full">
+              <label>Notes</label>
+              <textarea
+                name="notes"
+                value={form.notes}
+                onChange={handleChange}
+                placeholder="Enter observation notes, redirection provided, resident response, or follow-up needed..."
+              />
+            </div>
+
+            <div className="button-row">
+              <button className="primary-btn" type="submit">
+                <Save size={20} />
+                Save Hourly Check
+              </button>
+
+              <button className="secondary-btn" type="button" onClick={loadLogs}>
+                <RefreshCw size={18} />
+                Refresh Timeline
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <aside className="premium-card">
+          <div className="card-header">
+            <div>
+              <p>Resident Timeline</p>
+              <h2>Hourly Activity History</h2>
+            </div>
+            <Clock size={32} color="#2563eb" />
+          </div>
+
+          <div className="timeline">
+            {logs.length === 0 && (
+              <div className="empty-state">No hourly checks found.</div>
+            )}
+
+            {logs.map((log) => {
+              const risk = isRiskLog(log);
+
+              return (
+                <div className={`timeline-card ${risk ? "risk" : ""}`} key={log.id}>
+                  <div className="timeline-top">
+                    <strong>
+                      {log.hour_slot || log.check_datetime} · {log.activity || "Activity"}
+                    </strong>
+                    <span className={`status-dot ${risk ? "risk" : "safe"}`} />
+                  </div>
+
+                  <p>
+                    {getResidentName(log.resident_id)} · {log.location || "No location"}
+                  </p>
+
+                  <p>{log.notes || "No additional notes."}</p>
+
+                  <div className="chip-row">
+                    <span className={`chip ${risk ? "red" : "green"}`}>
+                      {risk ? <ShieldAlert size={12} /> : <CheckCircle2 size={12} />}
+                      {log.safety_status || "Safe"}
+                    </span>
+
+                    <span className="chip">
+                      <Eye size={12} />
+                      {log.supervision_level || "Supervision"}
+                    </span>
+
+                    <span className="chip">
+                      <HeartPulse size={12} />
+                      {log.mood || "Mood"}
+                    </span>
+
+                    <span className="chip">
+                      <MapPin size={12} />
+                      {log.location || "Location"}
+                    </span>
+
+                    {log.medication_taken && (
+                      <span className="chip green">
+                        <Pill size={12} />
+                        Medication Taken
+                      </span>
+                    )}
+
+                    {log.incident_observed && (
+                      <span className="chip red">
+                        <AlertTriangle size={12} />
+                        Incident
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </aside>
+      </section>
+
       <style>{`
         .hourly-page {
           min-height: 100vh;
@@ -245,7 +674,7 @@ export default function ResidentHourlyLogsPage() {
         }
 
         .hourly-hero {
-          min-height: 360px;
+          min-height: 370px;
           border-radius: 28px;
           padding: 42px;
           margin-bottom: 22px;
@@ -264,7 +693,10 @@ export default function ResidentHourlyLogsPage() {
           box-shadow: 0 32px 86px rgba(15,23,42,.26);
         }
 
-        .hourly-hero > * { position: relative; z-index: 2; }
+        .hourly-hero > * {
+          position: relative;
+          z-index: 2;
+        }
 
         .hero-kicker {
           display: inline-flex;
@@ -313,6 +745,7 @@ export default function ResidentHourlyLogsPage() {
           display: block;
           font-size: 38px;
           line-height: 1;
+          letter-spacing: -.05em;
         }
 
         .metric-card span {
@@ -492,28 +925,142 @@ export default function ResidentHourlyLogsPage() {
           line-height: 1.55;
         }
 
-        .check-grid {
+        .check-sections {
           grid-column: span 2;
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 10px;
-          padding: 16px;
-          border-radius: 18px;
-          background: #f8fbff;
+          gap: 18px;
+        }
+
+        .check-section {
+          padding: 20px;
+          border-radius: 22px;
+          background: linear-gradient(180deg, #ffffff, #f8fbff);
           border: 1px solid #dbeafe;
+          box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+        }
+
+        .check-section-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 14px;
+        }
+
+        .section-title-wrap {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .section-icon {
+          width: 46px;
+          height: 46px;
+          border-radius: 15px;
+          display: grid;
+          place-items: center;
+          color: #2563eb;
+          background: #dbeafe;
+        }
+
+        .check-section.green .section-icon {
+          color: #047857;
+          background: #d1fae5;
+        }
+
+        .check-section.red .section-icon {
+          color: #dc2626;
+          background: #fee2e2;
+        }
+
+        .check-section-header h3 {
+          margin: 0;
+          color: #071735;
+          font-size: 17px;
+          font-weight: 950;
+          letter-spacing: -0.03em;
+        }
+
+        .check-section-header span {
+          display: block;
+          margin-top: 3px;
+          color: #64748b;
+          font-size: 12px;
+          font-weight: 900;
+          text-transform: uppercase;
+        }
+
+        .check-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
         }
 
         .check-tile {
-          min-height: 46px;
-          border-radius: 14px;
-          padding: 0 12px;
+          min-height: 66px;
+          padding: 0 16px;
+          border-radius: 16px;
+          background: #ffffff;
+          border: 1px solid #dbeafe;
           display: flex;
           align-items: center;
-          gap: 9px;
-          background: white;
-          border: 1px solid #dbeafe;
+          justify-content: space-between;
+          gap: 14px;
+          cursor: pointer;
+          transition: 0.18s ease;
+        }
+
+        .check-tile:hover {
+          border-color: #2563eb;
+          background: #eff6ff;
+          transform: translateY(-1px);
+        }
+
+        .check-tile.active {
+          border-color: #0f766e;
+          background: #ecfdf5;
+        }
+
+        .check-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          color: #1e293b;
+          font-size: 14px;
           font-weight: 900;
-          color: #334155;
+        }
+
+        .check-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 13px;
+          display: grid;
+          place-items: center;
+          color: #2563eb;
+          background: #dbeafe;
+        }
+
+        .check-tile.active .check-icon {
+          color: #047857;
+          background: #d1fae5;
+        }
+
+        .check-indicator {
+          width: 28px;
+          height: 28px;
+          border-radius: 999px;
+          display: grid;
+          place-items: center;
+          color: #047857;
+          background: #d1fae5;
+          flex-shrink: 0;
+        }
+
+        .button-row {
+          grid-column: span 2;
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+          margin-top: 6px;
         }
 
         .primary-btn,
@@ -542,14 +1089,6 @@ export default function ResidentHourlyLogsPage() {
           border: 1px solid #cfe0f7;
         }
 
-        .button-row {
-          grid-column: span 2;
-          display: flex;
-          gap: 12px;
-          flex-wrap: wrap;
-          margin-top: 6px;
-        }
-
         .timeline {
           display: grid;
           gap: 14px;
@@ -566,6 +1105,28 @@ export default function ResidentHourlyLogsPage() {
 
         .timeline-card.risk {
           border-left-color: #dc2626;
+        }
+
+        .timeline-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .status-dot {
+          width: 12px;
+          height: 12px;
+          border-radius: 999px;
+          flex-shrink: 0;
+        }
+
+        .status-dot.safe {
+          background: #10b981;
+        }
+
+        .status-dot.risk {
+          background: #dc2626;
         }
 
         .timeline-card strong {
@@ -601,9 +1162,15 @@ export default function ResidentHourlyLogsPage() {
           gap: 5px;
         }
 
-        .chip.green { background: #ecfdf5; color: #047857; }
-        .chip.red { background: #fef2f2; color: #dc2626; }
-        .chip.orange { background: #fffbeb; color: #b45309; }
+        .chip.green {
+          background: #ecfdf5;
+          color: #047857;
+        }
+
+        .chip.red {
+          background: #fef2f2;
+          color: #dc2626;
+        }
 
         .empty-state {
           min-height: 150px;
@@ -618,310 +1185,56 @@ export default function ResidentHourlyLogsPage() {
         }
 
         @media (max-width: 1180px) {
-          .page-grid { grid-template-columns: 1fr; }
-          .hourly-hero { flex-direction: column; align-items: flex-start; }
-          .hero-metrics { width: 100%; }
-          .filter-card { flex-direction: column; align-items: stretch; }
-          .filter-controls { width: 100%; flex-wrap: wrap; }
+          .page-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .hourly-hero {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+
+          .hero-metrics {
+            width: 100%;
+          }
+
+          .filter-card {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .filter-controls {
+            width: 100%;
+            flex-wrap: wrap;
+          }
         }
 
         @media (max-width: 820px) {
-          .hourly-page { padding: 14px; }
-          .form-grid, .check-grid { grid-template-columns: 1fr; }
-          .form-field.full, .button-row, .check-grid { grid-column: span 1; }
-          .hourly-hero { min-height: auto; padding: 28px; }
-          .hourly-hero h1 { font-size: 42px; }
+          .hourly-page {
+            padding: 14px;
+          }
+
+          .form-grid,
+          .check-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .form-field.full,
+          .button-row,
+          .check-sections {
+            grid-column: span 1;
+          }
+
+          .hourly-hero {
+            min-height: auto;
+            padding: 28px;
+          }
+
+          .hourly-hero h1 {
+            font-size: 42px;
+          }
         }
       `}</style>
-
-      <section className="hourly-hero">
-        <div>
-          <p className="hero-kicker">
-            <Activity size={18} />
-            ResidentCare Command Center
-          </p>
-          <h1>
-            Hourly
-            <br />
-            Checks
-          </h1>
-          <p>
-            Document resident wellness checks, safety observations, activities,
-            mood, behavior, location, and risk status throughout the day.
-          </p>
-        </div>
-
-        <div className="hero-metrics">
-          <div className="metric-card">
-            <strong>{dashboard?.total_checks ?? 0}</strong>
-            <span>Total Checks</span>
-          </div>
-          <div className="metric-card">
-            <strong>{dashboard?.incidents ?? 0}</strong>
-            <span>Incidents</span>
-          </div>
-          <div className="metric-card">
-            <strong>{dashboard?.high_risk ?? 0}</strong>
-            <span>High Risk</span>
-          </div>
-        </div>
-      </section>
-
-      {message && <div className="message-bar">{message}</div>}
-
-      <div className="filter-card">
-        <div className="filter-left">
-          <div className="filter-icon">
-            <Search size={24} />
-          </div>
-          <div>
-            <p className="filter-title">
-              {selectedResident ? residentName(selectedResident) : "All Residents"}
-            </p>
-            <p className="filter-subtitle">
-              Select resident and date to view hourly wellness timeline.
-            </p>
-          </div>
-        </div>
-
-        <div className="filter-controls">
-          <select
-            value={selectedResidentId}
-            onChange={(e) => {
-              setSelectedResidentId(e.target.value);
-              setForm((prev) => ({ ...prev, resident_id: e.target.value }));
-            }}
-          >
-            <option value="">All Residents</option>
-            {residents.map((resident) => (
-              <option key={resident.id} value={resident.id}>
-                {residentName(resident)}
-              </option>
-            ))}
-          </select>
-
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
-
-          <button className="secondary-btn" type="button" onClick={loadLogs}>
-            <RefreshCw size={18} />
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      <section className="page-grid">
-        <form className="premium-card" onSubmit={submitLog}>
-          <div className="card-header">
-            <div>
-              <p>New Hourly Check</p>
-              <h2>Resident Wellness Log</h2>
-            </div>
-            <UserCheck size={32} color="#2563eb" />
-          </div>
-
-          <div className="form-grid">
-            <div className="form-field full">
-              <label>Resident</label>
-              <select name="resident_id" value={form.resident_id} onChange={handleChange} required>
-                <option value="">Select Resident</option>
-                {residents.map((resident) => (
-                  <option key={resident.id} value={resident.id}>
-                    {residentName(resident)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-field">
-              <label>Check Date/Time</label>
-              <input
-                type="datetime-local"
-                name="check_datetime"
-                value={form.check_datetime}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div className="form-field">
-              <label>Shift</label>
-              <select name="shift" value={form.shift} onChange={handleChange}>
-                <option value="DAY">Day</option>
-                <option value="EVENING">Evening</option>
-                <option value="OVERNIGHT">Overnight</option>
-              </select>
-            </div>
-
-            <div className="form-field">
-              <label>Location</label>
-              <input name="location" value={form.location} onChange={handleChange} />
-            </div>
-
-            <div className="form-field">
-              <label>Activity</label>
-              <select name="activity" value={form.activity} onChange={handleChange}>
-                <option value="">Select</option>
-                {ACTIVITIES.map((x) => <option key={x}>{x}</option>)}
-              </select>
-            </div>
-
-            <div className="form-field">
-              <label>Mood</label>
-              <select name="mood" value={form.mood} onChange={handleChange}>
-                <option value="">Select</option>
-                {MOODS.map((x) => <option key={x}>{x}</option>)}
-              </select>
-            </div>
-
-            <div className="form-field">
-              <label>Behavior</label>
-              <select name="behavior" value={form.behavior} onChange={handleChange}>
-                <option value="">Select</option>
-                {BEHAVIORS.map((x) => <option key={x}>{x}</option>)}
-              </select>
-            </div>
-
-            <div className="form-field">
-              <label>Safety Status</label>
-              <select name="safety_status" value={form.safety_status} onChange={handleChange}>
-                {SAFETY.map((x) => <option key={x}>{x}</option>)}
-              </select>
-            </div>
-
-            <div className="form-field">
-              <label>Supervision Level</label>
-              <select name="supervision_level" value={form.supervision_level} onChange={handleChange}>
-                <option>Independent</option>
-                <option>Visual Check</option>
-                <option>15 Minute Check</option>
-                <option>30 Minute Check</option>
-                <option>Hourly</option>
-                <option>One-to-One</option>
-                <option>Line of Sight</option>
-              </select>
-            </div>
-
-            <div className="check-grid">
-              {[
-                ["sleeping", "Sleeping"],
-                ["meal_taken", "Meal Taken"],
-                ["hydration", "Hydration"],
-                ["visitor_present", "Visitor Present"],
-                ["medication_due", "Medication Due"],
-                ["medication_taken", "Medication Taken"],
-                ["fall_risk", "Fall Risk"],
-                ["elopement_risk", "Elopement Risk"],
-                ["suicide_risk", "Suicide Risk"],
-                ["aggressive_behavior", "Aggressive Behavior"],
-                ["incident_observed", "Incident Observed"],
-              ].map(([name, label]) => (
-                <label className="check-tile" key={name}>
-                  <input
-                    type="checkbox"
-                    name={name}
-                    checked={Boolean(form[name])}
-                    onChange={handleChange}
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
-
-            <div className="form-field">
-              <label>Pain Level</label>
-              <input
-                type="number"
-                min="0"
-                max="10"
-                name="pain_level"
-                value={form.pain_level}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div className="form-field">
-              <label>Status</label>
-              <select name="status" value={form.status} onChange={handleChange}>
-                <option value="COMPLETED">Completed</option>
-                <option value="OPEN">Open</option>
-                <option value="NEEDS_FOLLOW_UP">Needs Follow Up</option>
-              </select>
-            </div>
-
-            <div className="form-field full">
-              <label>Notes</label>
-              <textarea name="notes" value={form.notes} onChange={handleChange} />
-            </div>
-
-            <div className="button-row">
-              <button className="primary-btn" type="submit">
-                <Save size={20} />
-                Save Hourly Check
-              </button>
-            </div>
-          </div>
-        </form>
-
-        <aside className="premium-card">
-          <div className="card-header">
-            <div>
-              <p>Timeline</p>
-              <h2>Hourly Activity History</h2>
-            </div>
-            <Clock size={32} color="#2563eb" />
-          </div>
-
-          <div className="timeline">
-            {logs.length === 0 && (
-              <div className="empty-state">No hourly checks found.</div>
-            )}
-
-            {logs.map((log) => {
-              const risk =
-                log.incident_observed ||
-                log.fall_risk ||
-                log.elopement_risk ||
-                log.suicide_risk ||
-                log.aggressive_behavior ||
-                log.safety_status === "High Risk";
-
-              return (
-                <div className={`timeline-card ${risk ? "risk" : ""}`} key={log.id}>
-                  <strong>
-                    {log.hour_slot || log.check_datetime} · {log.activity || "Activity"}
-                  </strong>
-                  <p>
-                    {getResidentName(log.resident_id)} · {log.location || "No location"}
-                  </p>
-                  <p>{log.notes || "No additional notes."}</p>
-
-                  <div className="chip-row">
-                    <span className={`chip ${risk ? "red" : "green"}`}>
-                      {risk ? <ShieldAlert size={12} /> : <CheckCircle2 size={12} />}
-                      {log.safety_status || "Safe"}
-                    </span>
-                    <span className="chip">
-                      <Eye size={12} />
-                      {log.supervision_level || "Supervision"}
-                    </span>
-                    <span className="chip">
-                      <HeartPulse size={12} />
-                      {log.mood || "Mood"}
-                    </span>
-                    <span className="chip">
-                      <MapPin size={12} />
-                      {log.location || "Location"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </aside>
-      </section>
     </div>
   );
 }

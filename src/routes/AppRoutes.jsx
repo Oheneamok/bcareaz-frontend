@@ -30,9 +30,10 @@ import FacilityOperationsCenterPage from "../pages/FacilityOperationsCenterPage"
 import FacilityRegulatoryCompliancePage from "../pages/FacilityRegulatoryCompliancePage";
 import OperationsDashboardPage from "../pages/OperationsDashboardPage";
 import MedicationCenterPage from "../pages/MedicationCenterPage";
-import ResidentProgressNotesPage from "../pages/ResidentProgressNotesPage";  ResidentGroupNotesPage
-import ResidentGroupNotesPage from "../pages/ResidentGroupNotesPage"; 
+import ResidentProgressNotesPage from "../pages/ResidentProgressNotesPage";
+import ResidentGroupNotesPage from "../pages/ResidentGroupNotesPage";
 import ResidentHourlyLogsPage from "../pages/ResidentHourlyLogsPage";
+import ResidentDailyActivitySummaryPage from "../pages/ResidentDailyActivitySummaryPage";
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("bcareaz_token");
@@ -57,6 +58,7 @@ function PublicRoute({ children }) {
 export default function AppRoutes() {
   return (
     <Routes>
+      {/* Public Routes */}
       <Route
         path="/login"
         element={
@@ -66,6 +68,7 @@ export default function AppRoutes() {
         }
       />
 
+      {/* Protected Routes */}
       <Route
         element={
           <ProtectedRoute>
@@ -77,24 +80,33 @@ export default function AppRoutes() {
         <Route path="/portal" element={<PortalHomePage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
 
+        {/* Residents */}
         <Route path="/residents" element={<ResidentsPage />} />
-        <Route path="/residents/:residentId" element={<ResidentDetailPage />} />
+        <Route
+          path="/residents/:residentId"
+          element={<ResidentDetailPage />}
+        />
 
+        {/* Staff */}
         <Route path="/staff" element={<StaffPage />} />
         <Route path="/staff/:staffId" element={<StaffDetailPage />} />
 
+        {/* General */}
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/compliance" element={<CompliancePage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
-		<Route path="/resident-care" element={<ResidentCarePage />} />
-		<Route path="/operations-center" element={<OperationsCenterPage />} />
-		<Route path="/nursing" element={<NursingPage />} />
-		<Route path="/bhp" element={<BHPPage />} />
-		<Route path="/clinical-team" element={<ClinicalTeamPage />} />
-		<Route path="/dietician" element={<DieticianPage />} />
-	
+
+        {/* Clinical */}
+        <Route path="/resident-care" element={<ResidentCarePage />} />
+        <Route path="/operations-center" element={<OperationsCenterPage />} />
+        <Route path="/nursing" element={<NursingPage />} />
+        <Route path="/bhp" element={<BHPPage />} />
+        <Route path="/clinical-team" element={<ClinicalTeamPage />} />
+        <Route path="/dietician" element={<DieticianPage />} />
+
+        {/* Facility Compliance */}
         <Route
           path="/facility-compliance/logs"
           element={<FacilityComplianceLogsPage />}
@@ -107,49 +119,55 @@ export default function AppRoutes() {
           path="/facility-compliance/progress-note-audit"
           element={<FacilityProgressNoteAuditPage />}
         />
-		<Route
+        <Route
           path="/facility-compliance/resident-sign-logs"
           element={<ResidentSignInOutPage />}
         />
-		<Route
+        <Route
           path="/facility-compliance/visitor-logs"
           element={<VisitorSignInOutPage />}
         />
-		<Route
+        <Route
           path="/facility-compliance/transport-logs"
           element={<VehicleTransportPage />}
         />
-		<Route
+        <Route
           path="/facility-compliance/facility-maintenance-logs"
-          element={<FacilityOperationsCenterPage/>}
+          element={<FacilityOperationsCenterPage />}
         />
-		<Route
+        <Route
           path="/facility-compliance/facility-compliance"
-          element={<FacilityRegulatoryCompliancePage/>}
+          element={<FacilityRegulatoryCompliancePage />}
         />
-		<Route
+        <Route
           path="/facility-compliance/operations-dashboard"
-          element={<OperationsDashboardPage/>}
+          element={<OperationsDashboardPage />}
         />
-	    <Route
+
+        {/* Resident Care */}
+        <Route
           path="/resident-care/medications"
-          element={<MedicationCenterPage/>}
+          element={<MedicationCenterPage />}
         />
-		<Route
+        <Route
           path="/resident-care/progress-notes"
-          element={<ResidentProgressNotesPage/>}
+          element={<ResidentProgressNotesPage />}
         />
-		<Route
+        <Route
           path="/resident-care/group-notes"
-          element={<ResidentGroupNotesPage/>}
+          element={<ResidentGroupNotesPage />}
         />
-		<Route
+        <Route
           path="/resident-care/resident-activity-logs"
-          element={<ResidentHourlyLogsPage/>}
+          element={<ResidentHourlyLogsPage />}
         />
-		
+        <Route
+          path="/resident-care/daily-summary-activities"
+          element={<ResidentDailyActivitySummaryPage />}
+        />
       </Route>
 
+      {/* Catch All */}
       <Route path="*" element={<Navigate to="/portal" replace />} />
     </Routes>
   );
